@@ -1,8 +1,10 @@
 import asyncio
 import logging
-from config import TOKEN
-from maxapi import Bot, Dispatcher, F
-from maxapi.types import BotStarted, Command, MessageCreated
+
+from core.config import TOKEN
+from maxapi import Bot, Dispatcher
+from maxapi.types import BotStarted
+
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(TOKEN)
