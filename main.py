@@ -1,19 +1,20 @@
 import asyncio
 import logging
-
+from config import TOKEN
 from maxapi import Bot, Dispatcher, F
-from maxapi.types import MessageCreated
-
+from maxapi.types import BotStarted, Command, MessageCreated
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot('')
+bot = Bot(TOKEN)
 dp = Dispatcher()
 
 
-@dp.message_created(F.message.body.text)
-async def echo(event: MessageCreated):
-    await event.message.answer(f"Повторяю за вами: {event.message.body.text}")
-
+@dp.bot_started()
+async def on_bot_started(event: BotStarted):
+    await event.bot.send_message(
+        chat_id=event.chat_id,
+        text='Привет! Я Кузя — твой персональный помощник по продуктивности и развитию. Начнем с команды /start или /menu!'
+    )
 
 async def main():
     await dp.start_polling(bot)
