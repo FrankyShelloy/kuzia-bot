@@ -3,5 +3,5 @@ import os
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("TOKEN")
 DB_URL = os.getenv("DB_URL")
