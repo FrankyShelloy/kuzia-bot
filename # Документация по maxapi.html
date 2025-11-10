@@ -1,0 +1,1330 @@
+# Документация по maxapi
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Полная документация maxapi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        h1 {
+            color: #4a5568;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+
+        .toc {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .toc h2 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .toc-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .toc-section {
+            margin-bottom: 20px;
+        }
+
+        .toc-section h3 {
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .toc-section ul {
+            list-style: none;
+        }
+
+        .toc-section li {
+            margin-bottom: 6px;
+        }
+
+        .toc-section a {
+            color: #4a5568;
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            display: block;
+            font-size: 0.9em;
+        }
+
+        .toc-section a:hover {
+            background: #667eea;
+            color: white;
+            transform: translateX(5px);
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .section h2 {
+            color: #4a5568;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .section h3 {
+            color: #4a5568;
+            font-size: 1.4em;
+            margin: 25px 0 15px 0;
+        }
+
+        .section h4 {
+            color: #4a5568;
+            font-size: 1.2em;
+            margin: 20px 0 10px 0;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid #667eea;
+            font-size: 0.9em;
+        }
+
+        .code-comment {
+            color: #a0aec0;
+        }
+
+        .code-keyword {
+            color: #f56565;
+        }
+
+        .code-function {
+            color: #68d391;
+        }
+
+        .code-string {
+            color: #f6e05e;
+        }
+
+        .code-class {
+            color: #63b3ed;
+        }
+
+        .code-param {
+            color: #b794f4;
+        }
+
+        .note {
+            background: #fed7d7;
+            border-left: 4px solid #f56565;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .info {
+            background: #bee3f8;
+            border-left: 4px solid #3182ce;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .warning {
+            background: #fefcbf;
+            border-left: 4px solid #d69e2e;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .success {
+            background: #c6f6d5;
+            border-left: 4px solid #38a169;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            font-size: 0.9em;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .method-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .method-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #667eea;
+        }
+
+        .method-name {
+            color: #4a5568;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .method-desc {
+            color: #718096;
+            font-size: 0.9em;
+        }
+
+        .param-table {
+            font-size: 0.85em;
+        }
+
+        .param-table th {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .badge-new {
+            background: #68d391;
+            color: white;
+        }
+
+        .badge-important {
+            background: #f56565;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #ed8936;
+            color: white;
+        }
+
+        .badge-info {
+            background: #4299e1;
+            color: white;
+        }
+
+        .api-method {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .api-signature {
+            background: #2d3748;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .toc-columns {
+                grid-template-columns: 1fr;
+            }
+            
+            .method-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Полная документация maxapi</h1>
+            <p class="subtitle">Исчерпывающее руководство по разработке ботов для MAX</p>
+        </header>
+
+        <div class="toc">
+            <h2>📑 Полное содержание</h2>
+            <div class="toc-columns">
+                <div class="toc-section">
+                    <h3>🚀 Начало работы</h3>
+                    <ul>
+                        <li><a href="#installation">Установка и настройка</a></li>
+                        <li><a href="#quickstart">Быстрый старт</a></li>
+                        <li><a href="#project-structure">Структура проекта</a></li>
+                        <li><a href="#configuration">Конфигурация</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <h3>🎯 Основы</h3>
+                    <ul>
+                        <li><a href="#handlers">Обработчики событий</a></li>
+                        <li><a href="#filters">Фильтры (MagicFilter)</a></li>
+                        <li><a href="#keyboard">Клавиатуры</a></li>
+                        <li><a href="#states">Состояния (States)</a></li>
+                        <li><a href="#memory-context">Контекст памяти</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <h3>🏗️ Архитектура</h3>
+                    <ul>
+                        <li><a href="#routers">Роутеры</a></li>
+                        <li><a href="#middleware">Middleware</a></li>
+                        <li><a href="#dependency-injection">DI и зависимости</a></li>
+                        <li><a href="#error-handling">Обработка ошибок</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <h3>🌐 Вебхуки и деплой</h3>
+                    <ul>
+                        <li><a href="#webhook">Вебхуки</a></li>
+                        <li><a href="#deployment">Деплой</a></li>
+                        <li><a href="#scaling">Масштабирование</a></li>
+                        <li><a href="#monitoring">Мониторинг</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <h3>🤖 API Reference</h3>
+                    <ul>
+                        <li><a href="#bot-methods">Методы бота</a></li>
+                        <li><a href="#events">События</a></li>
+                        <li><a href="#types">Типы данных</a></li>
+                        <li><a href="#attachments">Вложения</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <h3>⚡ Продвинутые темы</h3>
+                    <ul>
+                        <li><a href="#testing">Тестирование</a></li>
+                        <li><a href="#security">Безопасность</a></li>
+                        <li><a href="#performance">Производительность</a></li>
+                        <li><a href="#best-practices">Best Practices</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <h3>🔧 Утилиты</h3>
+                    <ul>
+                        <li><a href="#logging">Логирование</a></li>
+                        <li><a href="#utils">Вспомогательные утилиты</a></li>
+                        <li><a href="#migration">Миграции</a></li>
+                        <li><a href="#troubleshooting">Решение проблем</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Установка и настройка -->
+        <div id="installation" class="section">
+            <h2>⚙️ Установка и настройка</h2>
+            
+            <h3>Установка библиотеки</h3>
+            <div class="code-block">
+                <span class="code-comment"># Базовая установка</span><br>
+                pip install maxapi<br>
+                <br>
+                <span class="code-comment"># С дополнительными зависимостями</span><br>
+                pip install maxapi[webhook]  <span class="code-comment"># для вебхуков</span><br>
+                pip install maxapi[all]      <span class="code-comment"># все зависимости</span><br>
+                pip install maxapi[dev]      <span class="code-comment"># для разработки</span>
+            </div>
+
+            <h3>Требования</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Компонент</th>
+                        <th>Версия</th>
+                        <th>Обязательно</th>
+                        <th>Описание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Python</td>
+                        <td>≥ 3.8</td>
+                        <td>✅</td>
+                        <td>Основной язык программирования</td>
+                    </tr>
+                    <tr>
+                        <td>aiohttp</td>
+                        <td>≥ 3.8.0</td>
+                        <td>✅</td>
+                        <td>Асинхронные HTTP-запросы</td>
+                    </tr>
+                    <tr>
+                        <td>pydantic</td>
+                        <td>≥ 2.0.0</td>
+                        <td>✅</td>
+                        <td>Валидация данных</td>
+                    </tr>
+                    <tr>
+                        <td>fastapi</td>
+                        <td>≥ 0.68.0</td>
+                        <td>❌ (опционально)</td>
+                        <td>Для работы вебхуков</td>
+                    </tr>
+                    <tr>
+                        <td>uvicorn</td>
+                        <td>≥ 0.15.0</td>
+                        <td>❌ (опционально)</td>
+                        <td>ASGI сервер для вебхуков</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Получение токена бота</h3>
+            <div class="info">
+                <strong>Шаги для получения токена:</strong><br>
+                1. Откройте приложение MAX<br>
+                2. Найдите @maximibot и начните диалог<br>
+                3. Отправьте команду <code>/start</code><br>
+                4. Следуйте инструкциям для создания бота<br>
+                5. Сохраните полученный токен в безопасном месте
+            </div>
+
+            <h3>Проверка установки</h3>
+            <div class="code-block">
+                <span class="code-comment"># test_installation.py</span><br>
+                <span class="code-keyword">import</span> maxapi<br>
+                <span class="code-keyword">import</span> asyncio<br>
+                <br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">test_bot</span>():<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;bot = maxapi.Bot(<span class="code-string">'YOUR_TOKEN'</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;me = <span class="code-keyword">await</span> bot.get_me()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;print(<span class="code-string">f"Бот @{me.username} успешно подключен!"</span>)<br>
+                <br>
+                <span class="code-keyword">if</span> __name__ == <span class="code-string">"__main__"</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;asyncio.run(test_bot())
+            </div>
+        </div>
+
+        <!-- Быстрый старт -->
+        <div id="quickstart" class="section">
+            <h2>🚀 Быстрый старт</h2>
+
+            <h3>Минимальный рабочий бот</h3>
+            <div class="code-block">
+                <span class="code-keyword">import</span> asyncio<br>
+                <span class="code-keyword">import</span> logging<br>
+                <span class="code-keyword">from</span> maxapi <span class="code-keyword">import</span> Bot, Dispatcher<br>
+                <span class="code-keyword">from</span> maxapi.filters <span class="code-keyword">import</span> F<br>
+                <span class="code-keyword">from</span> maxapi.types <span class="code-keyword">import</span> MessageCreated<br>
+                <br>
+                <span class="code-comment"># Настройка логирования</span><br>
+                logging.basicConfig(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;level=logging.INFO,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;format=<span class="code-string">'%(asctime)s - %(name)s - %(levelname)s - %(message)s'</span><br>
+                )<br>
+                <br>
+                <span class="code-comment"># Инициализация бота и диспетчера</span><br>
+                bot = Bot(<span class="code-string">'YOUR_BOT_TOKEN'</span>)<br>
+                dp = Dispatcher()<br>
+                <br>
+                <span class="code-comment"># Обработчик текстовых сообщений</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.body.text)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">echo_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"Вы сказали: {event.message.body.text}"</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;)<br>
+                <br>
+                <span class="code-comment"># Обработчик команды /start</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.body.text == <span class="code-string">"/start"</span>)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">start_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"Привет! Я эхо-бот. Просто напиши мне что-нибудь."</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;)<br>
+                <br>
+                <span class="code-comment"># Запуск бота в режиме polling</span><br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">main</span>():<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> dp.start_polling(bot)<br>
+                <br>
+                <span class="code-keyword">if</span> __name__ == <span class="code-string">'__main__'</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;asyncio.run(main())
+            </div>
+
+            <div class="success">
+                <strong>✅ Бот готов к работе!</strong><br>
+                Запустите скрипт и отправьте боту сообщение в MAX. Вы должны получить ответ.
+            </div>
+        </div>
+
+        <!-- Структура проекта -->
+        <div id="project-structure" class="section">
+            <h2>📁 Структура проекта</h2>
+
+            <h3>Рекомендуемая структура для продакшн-бота</h3>
+            <div class="code-block">
+                my_advanced_bot/<br>
+                ├── app/<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── main.py                 <span class="code-comment"># Точка входа</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── config.py              <span class="code-comment"># Конфигурация</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── bot.py                 <span class="code-comment"># Инициализация бота</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── handlers/              <span class="code-comment"># Обработчики</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── commands.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── messages.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── callbacks.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── errors.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── keyboards/             <span class="code-comment"># Клавиатуры</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── main_menu.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── inline.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── middlewares/           <span class="code-comment"># Промежуточное ПО</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── logging.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── throttling.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── routers/               <span class="code-comment"># Роутеры</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── admin.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── user.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── services/              <span class="code-comment"># Бизнес-логика</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── database.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── external_api.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── utils/                 <span class="code-comment"># Утилиты</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── helpers.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── validators.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;└── models/                <span class="code-comment"># Модели данных</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── user.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── chat.py<br>
+                ├── tests/                     <span class="code-comment"># Тесты</span><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── __init__.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── conftest.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;├── test_handlers.py<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;└── test_services.py<br>
+                ├── migrations/                <span class="code-comment"># Миграции БД (если нужно)</span><br>
+                ├── docker/                    <span class="code-comment"># Docker файлы</span><br>
+                ├── requirements.txt<br>
+                ├── Dockerfile<br>
+                ├── docker-compose.yml<br>
+                ├── .env.example<br>
+                └── README.md
+            </div>
+
+            <h3>Пример main.py для структурированного проекта</h3>
+            <div class="code-block">
+                <span class="code-keyword">import</span> asyncio<br>
+                <span class="code-keyword">import</span> logging<br>
+                <span class="code-keyword">from</span> app.bot <span class="code-keyword">import</span> setup_bot<br>
+                <span class="code-keyword">from</span> app.config <span class="code-keyword">import</span> config<br>
+                <br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">main</span>():<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># Настройка логирования</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;logging.basicConfig(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;level=logging.INFO <span class="code-keyword">if</span> <span class="code-keyword">not</span> config.debug <span class="code-keyword">else</span> logging.DEBUG,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;format=<span class="code-string">'%(asctime)s - %(name)s - %(levelname)s - %(message)s'</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># Инициализация бота</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;bot, dp = <span class="code-keyword">await</span> setup_bot()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># Запуск в зависимости от режима</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> config.webhook_url:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> dp.handle_webhook(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bot, <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;host=config.webhook_host, <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;port=config.webhook_port<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">else</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> dp.start_polling(bot)<br>
+                <br>
+                <span class="code-keyword">if</span> __name__ == <span class="code-string">'__main__'</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">try</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;asyncio.run(main())<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">except</span> KeyboardInterrupt:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print(<span class="code-string">"Бот остановлен"</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">except</span> Exception <span class="code-keyword">as</span> e:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;logging.error(<span class="code-string">f"Критическая ошибка: {e}"</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;raise
+            </div>
+        </div>
+
+        <!-- Конфигурация -->
+        <div id="configuration" class="section">
+            <h2>⚙️ Конфигурация</h2>
+
+            <h3>Конфигурация через environment variables</h3>
+            <div class="code-block">
+                <span class="code-comment"># .env файл</span><br>
+                BOT_TOKEN=your_bot_token_here<br>
+                DEBUG=false<br>
+                WEBHOOK_URL=https://yourdomain.com/webhook<br>
+                WEBHOOK_HOST=0.0.0.0<br>
+                WEBHOOK_PORT=8080<br>
+                REDIS_URL=redis://localhost:6379<br>
+                DATABASE_URL=postgresql://user:pass@localhost/dbname<br>
+                LOG_LEVEL=INFO<br>
+                ADMIN_IDS=123456,789012
+            </div>
+
+            <h3>Класс конфигурации</h3>
+            <div class="code-block">
+                <span class="code-keyword">import</span> os<br>
+                <span class="code-keyword">from</span> dataclasses <span class="code-keyword">import</span> dataclass<br>
+                <span class="code-keyword">from</span> typing <span class="code-keyword">import</span> List<br>
+                <br>
+                @dataclass<br>
+                <span class="code-keyword">class</span> <span class="code-class">Config</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;bot_token: str<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;debug: bool<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;webhook_url: str<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;webhook_host: str<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;webhook_port: int<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;redis_url: str<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;database_url: str<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;log_level: str<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;admin_ids: List[int]<br>
+                <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;@classmethod<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">def</span> <span class="code-function">from_env</span>(cls):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> cls(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bot_token=os.getenv(<span class="code-string">"BOT_TOKEN"</span>),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;debug=os.getenv(<span class="code-string">"DEBUG"</span>, <span class="code-string">"false"</span>).lower() == <span class="code-string">"true"</span>,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;webhook_url=os.getenv(<span class="code-string">"WEBHOOK_URL"</span>, <span class="code-string">""</span>),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;webhook_host=os.getenv(<span class="code-string">"WEBHOOK_HOST"</span>, <span class="code-string">"0.0.0.0"</span>),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;webhook_port=int(os.getenv(<span class="code-string">"WEBHOOK_PORT"</span>, <span class="code-string">"8080"</span>)),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;redis_url=os.getenv(<span class="code-string">"REDIS_URL"</span>, <span class="code-string">"redis://localhost:6379"</span>),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;database_url=os.getenv(<span class="code-string">"DATABASE_URL"</span>, <span class="code-string">""</span>),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log_level=os.getenv(<span class="code-string">"LOG_LEVEL"</span>, <span class="code-string">"INFO"</span>),<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;admin_ids=[int(x) <span class="code-keyword">for</span> x <span class="code-keyword">in</span> os.getenv(<span class="code-string">"ADMIN_IDS"</span>, <span class="code-string">""</span>).split(<span class="code-string">","</span>) <span class="code-keyword">if</span> x]<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>
+                <br>
+                <span class="code-comment"># Использование</span><br>
+                config = Config.from_env()
+            </div>
+        </div>
+
+        <!-- Обработчики событий -->
+        <div id="handlers" class="section">
+            <h2>🎯 Обработчики событий</h2>
+
+            <h3>Полный список типов обработчиков</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Декоратор</th>
+                        <th>Тип события</th>
+                        <th>Описание</th>
+                        <th>Пример использования</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>@dp.message_created</code></td>
+                        <td><code>MessageCreated</code></td>
+                        <td>Создание нового сообщения</td>
+                        <td>Основной обработчик сообщений</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.message_edited</code></td>
+                        <td><code>MessageEdited</code></td>
+                        <td>Редактирование сообщения</td>
+                        <td>Отслеживание изменений</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.message_removed</code></td>
+                        <td><code>MessageRemoved</code></td>
+                        <td>Удаление сообщения</td>
+                        <td>Модерация, логирование</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.message_callback</code></td>
+                        <td><code>MessageCallback</code></td>
+                        <td>Нажатие callback-кнопки</td>
+                        <td>Интерактивные клавиатуры</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.bot_added</code></td>
+                        <td><code>BotAdded</code></td>
+                        <td>Бота добавили в чат</td>
+                        <td>Приветственное сообщение</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.bot_removed</code></td>
+                        <td><code>BotRemoved</code></td>
+                        <td>Бота удалили из чата</td>
+                        <td>Очистка данных</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.user_added</code></td>
+                        <td><code>UserAdded</code></td>
+                        <td>Пользователя добавили в чат</td>
+                        <td>Приветствие новых участников</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.user_removed</code></td>
+                        <td><code>UserRemoved</code></td>
+                        <td>Пользователя удалили из чата</td>
+                        <td>Обновление статистики</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.chat_title_changed</code></td>
+                        <td><code>ChatTitleChanged</code></td>
+                        <td>Изменение названия чата</td>
+                        <td>Логирование изменений</td>
+                    </tr>
+                    <tr>
+                        <td><code>@dp.errors</code></td>
+                        <td><code>ErrorEvent</code></td>
+                        <td>Ошибки в обработчиках</td>
+                        <td>Глобальная обработка ошибок</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Продвинутые паттерны обработчиков</h3>
+
+            <h4>Цепочка обработчиков</h4>
+            <div class="code-block">
+                <span class="code-comment"># handlers/messages.py</span><br>
+                <span class="code-keyword">from</span> maxapi <span class="code-keyword">import</span> Dispatcher<br>
+                <span class="code-keyword">from</span> maxapi.filters <span class="code-keyword">import</span> F<br>
+                <span class="code-keyword">from</span> maxapi.types <span class="code-keyword">import</span> MessageCreated<br>
+                <br>
+                dp = Dispatcher()<br>
+                <br>
+                <span class="code-comment"># Обработчик команд</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.body.text.startswith(<span class="code-string">'/'</span>))<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">command_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;command = event.message.body.text.split()[0]<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> command == <span class="code-string">'/start'</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Добро пожаловать!"</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span>  <span class="code-comment"># Прерываем цепочку</span><br>
+                <br>
+                <span class="code-comment"># Обработчик текстовых сообщений (сработает если команда не обработана)</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.body.text)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">text_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">f"Вы написали: {event.message.body.text}"</span>)
+            </div>
+
+            <h4>Группировка обработчиков</h4>
+            <div class="code-block">
+                <span class="code-comment"># Группировка по типу контента</span><br>
+                <span class="code-keyword">from</span> maxapi.filters <span class="code-keyword">import</span> F<br>
+                <br>
+                <span class="code-comment"># Обработчик текста</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.body.text)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">handle_text</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;...<br>
+                <br>
+                <span class="code-comment"># Обработчик изображений</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.attachments.photo)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">handle_photo</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;...<br>
+                <br>
+                <span class="code-comment"># Обработчик документов</span><br>
+                @dp.<span class="code-function">message_created</span>(F.message.attachments.file)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">handle_document</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;...
+            </div>
+        </div>
+
+        <!-- Фильтры -->
+        <div id="filters" class="section">
+            <h2>🔍 Фильтры (MagicFilter)</h2>
+
+            <h3>Базовые фильтры</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> maxapi.filters <span class="code-keyword">import</span> F<br>
+                <br>
+                <span class="code-comment"># Фильтр по тексту</span><br>
+                F.message.body.text<br>
+                <br>
+                <span class="code-comment"># Фильтр по команде</span><br>
+                F.message.body.text == <span class="code-string">"/start"</span><br>
+                F.message.body.text.startswith(<span class="code-string">"/"</span>)<br>
+                <br>
+                <span class="code-comment"># Фильтр по типу чата</span><br>
+                F.chat.type == <span class="code-string">"private"</span><br>
+                F.chat.type == <span class="code-string">"group"</span><br>
+                <br>
+                <span class="code-comment"># Фильтр по отправителю</span><br>
+                F.message.sender.is_bot == <span class="code-keyword">False</span><br>
+                F.message.sender.id == 123456<br>
+                <br>
+                <span class="code-comment"># Фильтр по вложениям</span><br>
+                F.message.attachments.photo<br>
+                F.message.attachments.video<br>
+                F.message.attachments.file
+            </div>
+
+            <h3>Комбинация фильтров</h3>
+            <div class="code-block">
+                <span class="code-comment"># Логическое И</span><br>
+                (F.message.body.text) & (F.chat.type == <span class="code-string">"private"</span>)<br>
+                <br>
+                <span class="code-comment"># Логическое ИЛИ</span><br>
+                (F.message.body.text == <span class="code-string">"/start"</span>) | (F.message.body.text == <span class="code-string">"/help"</span>)<br>
+                <br>
+                <span class="code-comment"># Отрицание</span><br>
+                ~F.message.sender.is_bot<br>
+                <br>
+                <span class="code-comment"># Комплексные условия</span><br>
+                (F.message.body.text) & (F.chat.type == <span class="code-string">"private"</span>) & (~F.message.sender.is_bot)
+            </div>
+
+            <h3>Пользовательские фильтры</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> maxapi.filters <span class="code-keyword">import</span> Filter<br>
+                <span class="code-keyword">from</span> maxapi.types <span class="code-keyword">import</span> MessageCreated<br>
+                <br>
+                <span class="code-keyword">class</span> <span class="code-class">IsAdmin</span>(Filter):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">__call__</span>(<span class="code-keyword">self</span>, event: MessageCreated) -> bool:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;admin_ids = [123456, 789012]  <span class="code-comment"># Список ID администраторов</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> event.message.sender.id <span class="code-keyword">in</span> admin_ids<br>
+                <br>
+                <span class="code-keyword">class</span> <span class="code-class">HasPhoto</span>(Filter):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">__call__</span>(<span class="code-keyword">self</span>, event: MessageCreated) -> bool:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> bool(event.message.attachments <span class="code-keyword">and</span> <span class="code-keyword">any</span>(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;attr.type == <span class="code-string">"image"</span> <span class="code-keyword">for</span> attr <span class="code-keyword">in</span> event.message.attachments<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;))<br>
+                <br>
+                <span class="code-comment"># Использование кастомных фильтров</span><br>
+                @dp.<span class="code-function">message_created</span>(IsAdmin() & HasPhoto())<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">admin_photo_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Админ отправил фото!"</span>)
+            </div>
+
+            <h3>Фильтры с параметрами</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> typing <span class="code-keyword">import</span> List<br>
+                <br>
+                <span class="code-keyword">class</span> <span class="code-class">TextIn</span>(Filter):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">def</span> <span class="code-function">__init__</span>(<span class="code-keyword">self</span>, words: List[str]):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.words = words<br>
+                <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">__call__</span>(<span class="code-keyword">self</span>, event: MessageCreated) -> bool:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;text = event.message.body.text.lower()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> <span class="code-keyword">any</span>(word <span class="code-keyword">in</span> text <span class="code-keyword">for</span> word <span class="code-keyword">in</span> <span class="code-keyword">self</span>.words)<br>
+                <br>
+                <span class="code-comment"># Использование</span><br>
+                @dp.<span class="code-function">message_created</span>(TextIn([<span class="code-string">"привет"</span>, <span class="code-string">"здравствуй"</span>, <span class="code-string">"hello"</span>]))<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">greeting_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"И тебе привет! 👋"</span>)
+            </div>
+        </div>
+
+        <!-- Продолжение следует... -->
+         <!-- Роутеры -->
+        <div id="routers" class="section">
+            <h2>🔄 Роутеры</h2>
+
+            <h3>Создание и использование роутеров</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> maxapi <span class="code-keyword">import</span> Router<br>
+                <span class="code-keyword">from</span> maxapi.filters <span class="code-keyword">import</span> F<br>
+                <span class="code-keyword">from</span> maxapi.types <span class="code-keyword">import</span> MessageCreated<br>
+                <br>
+                <span class="code-comment"># Создание роутера для пользовательских команд</span><br>
+                user_router = Router()<br>
+                <br>
+                @user_router.<span class="code-function">message_created</span>(F.message.body.text == <span class="code-string">"/profile"</span>)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">profile_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Ваш профиль..."</span>)<br>
+                <br>
+                @user_router.<span class="code-function">message_created</span>(F.message.body.text == <span class="code-string">"/settings"</span>)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">settings_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Настройки..."</span>)<br>
+                <br>
+                <span class="code-comment"># Роутер для административных команд</span><br>
+                admin_router = Router()<br>
+                <br>
+                @admin_router.<span class="code-function">message_created</span>(F.message.body.text == <span class="code-string">"/stats"</span>)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">stats_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Статистика бота..."</span>)<br>
+                <br>
+                <span class="code-comment"># Подключение роутеров к главному диспетчеру</span><br>
+                dp.include_router(user_router)<br>
+                dp.include_router(admin_router)
+            </div>
+
+            <h3>Вложенные роутеры</h3>
+            <div class="code-block">
+                <span class="code-comment"># Главный роутер</span><br>
+                main_router = Router()<br>
+                <br>
+                <span class="code-comment"># Подроутер для работы с медиа</span><br>
+                media_router = Router()<br>
+                <br>
+                @media_router.<span class="code-function">message_created</span>(F.message.attachments.photo)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">photo_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Обработка фото..."</span>)<br>
+                <br>
+                <span class="code-comment"># Включение подроутера в главный</span><br>
+                main_router.include_router(media_router)<br>
+                <span class="code-comment"># И затем в диспетчер</span><br>
+                dp.include_router(main_router)
+            </div>
+
+            <h3>Фильтры на уровне роутеров</h3>
+            <div class="code-block">
+                <span class="code-comment"># Роутер только для приватных чатов</span><br>
+                private_router = Router()<br>
+                <br>
+                <span class="code-comment"># Применение фильтра ко всему роутеру</span><br>
+                @private_router.<span class="code-function">message_created</span>(F.chat.type == <span class="code-string">"private"</span>)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">private_message_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Это приватный чат"</span>)<br>
+                <br>
+                <span class="code-comment"># Или установка фильтра для всего роутера</span><br>
+                group_router = Router()<br>
+                group_router.message.filter(F.chat.type == <span class="code-string">"group"</span>)<br>
+                <br>
+                @group_router.<span class="code-function">message_created</span>()<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">group_message_handler</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Это групповой чат"</span>)
+            </div>
+        </div>
+
+        <!-- Middleware -->
+        <div id="middleware" class="section">
+            <h2>⚡ Middleware</h2>
+
+            <h3>Базовое middleware</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> maxapi <span class="code-keyword">import</span> BaseMiddleware<br>
+                <span class="code-keyword">from</span> maxapi.types <span class="code-keyword">import</span> MessageCreated<br>
+                <span class="code-keyword">import</span> time<br>
+                <br>
+                <span class="code-keyword">class</span> <span class="code-class">TimingMiddleware</span>(BaseMiddleware):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">__call__</span>(<span class="code-keyword">self</span>, handler, event, data):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start_time = time.time()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result = <span class="code-keyword">await</span> handler(event, data)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end_time = time.time()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print(<span class="code-string">f"Обработка заняла {end_time - start_time:.2f} секунд"</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> result<br>
+                <br>
+                <span class="code-comment"># Регистрация middleware</span><br>
+                dp.message.middleware.register(TimingMiddleware())
+            </div>
+
+            <h3>Middleware для аутентификации</h3>
+            <div class="code-block">
+                <span class="code-keyword">class</span> <span class="code-class">AuthMiddleware</span>(BaseMiddleware):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">def</span> <span class="code-function">__init__</span>(<span class="code-keyword">self</span>, allowed_users: list):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.allowed_users = allowed_users<br>
+                <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">__call__</span>(<span class="code-keyword">self</span>, handler, event, data):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> <span class="code-keyword">isinstance</span>(event, MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;user_id = event.message.sender.id<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> user_id <span class="code-keyword">not</span> <span class="code-keyword">in</span> <span class="code-keyword">self</span>.allowed_users:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Доступ запрещен"</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span>  <span class="code-comment"># Прерываем выполнение</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> <span class="code-keyword">await</span> handler(event, data)<br>
+                <br>
+                <span class="code-comment"># Использование</span><br>
+                auth_middleware = AuthMiddleware(allowed_users=[123456, 789012])<br>
+                dp.message.middleware.register(auth_middleware)
+            </div>
+
+            <h3>Middleware для ограничения запросов</h3>
+            <div class="code-block">
+                <span class="code-keyword">import</span> asyncio<br>
+                <span class="code-keyword">from</span> collections <span class="code-keyword">import</span> defaultdict<br>
+                <br>
+                <span class="code-keyword">class</span> <span class="code-class">ThrottlingMiddleware</span>(BaseMiddleware):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">def</span> <span class="code-function">__init__</span>(<span class="code-keyword">self</span>, rate_limit: int = 5, period: int = 60):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.rate_limit = rate_limit<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.period = period<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.users = defaultdict(list)<br>
+                <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">__call__</span>(<span class="code-keyword">self</span>, handler, event, data):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> <span class="code-keyword">isinstance</span>(event, MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;user_id = event.message.sender.id<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;now = time.time()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># Очистка старых записей</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.users[user_id] = [t <span class="code-keyword">for</span> t <span class="code-keyword">in</span> <span class="code-keyword">self</span>.users[user_id] <span class="code-keyword">if</span> now - t &lt; <span class="code-keyword">self</span>.period]<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> len(<span class="code-keyword">self</span>.users[user_id]) &gt;= <span class="code-keyword">self</span>.rate_limit:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Слишком много запросов. Подождите."</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">self</span>.users[user_id].append(now)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> <span class="code-keyword">await</span> handler(event, data)<br>
+                <br>
+                <span class="code-comment"># Ограничение: 5 сообщений в минуту</span><br>
+                throttling_middleware = ThrottlingMiddleware(rate_limit=5, period=60)<br>
+                dp.message.middleware.register(throttling_middleware)
+            </div>
+        </div>
+
+        <!-- Вебхуки -->
+        <div id="webhook" class="section">
+            <h2>🌐 Вебхуки</h2>
+
+            <h3>Базовая настройка вебхука</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> maxapi <span class="code-keyword">import</span> Bot, Dispatcher<br>
+                <span class="code-keyword">from</span> maxapi.types <span class="code-keyword">import</span> MessageCreated<br>
+                <span class="code-keyword">import</span> logging<br>
+                <br>
+                logging.basicConfig(level=logging.INFO)<br>
+                <br>
+                bot = Bot(<span class="code-string">'YOUR_BOT_TOKEN'</span>)<br>
+                dp = Dispatcher()<br>
+                <br>
+                @dp.<span class="code-function">message_created</span>()<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">handle_message</span>(event: MessageCreated):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> event.message.answer(<span class="code-string">"Привет от вебхука!"</span>)<br>
+                <br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">main</span>():<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># Запуск вебхука на localhost:8080</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> dp.handle_webhook(<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bot,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;host=<span class="code-string">"0.0.0.0"</span>,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;port=8080<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;)<br>
+                <br>
+                <span class="code-keyword">if</span> __name__ == <span class="code-string">"__main__"</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">import</span> asyncio<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;asyncio.run(main())
+            </div>
+
+            <h3>Кастомная обработка вебхука</h3>
+            <div class="code-block">
+                <span class="code-keyword">from</span> fastapi <span class="code-keyword">import</span> FastAPI, Request<br>
+                <span class="code-keyword">from</span> fastapi.responses <span class="code-keyword">import</span> JSONResponse<br>
+                <br>
+                app = FastAPI()<br>
+                <br>
+                @app.post(<span class="code-string">"/webhook"</span>)<br>
+                <span class="code-keyword">async</span> <span class="code-keyword">def</span> <span class="code-function">webhook_handler</span>(request: Request):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">try</span>:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;update_data = <span class="code-keyword">await</span> request.json()<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;event = <span class="code-keyword">await</span> process_update_webhook(update_data, bot)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">await</span> dp.handle(event)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> JSONResponse({<span class="code-string">"status"</span>: <span class="code-string">"ok"</span>})<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">except</span> Exception <span class="code-keyword">as</span> e:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;logging.error(<span class="code-string">f"Webhook error: {e}"</span>)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> JSONResponse({<span class="code-string">"status"</span>: <span class="code-string">"error"</span>}, status_code=500)<br>
+                <br>
+                <span class="code-comment"># Запуск через uvicorn</span><br>
+                <span class="code-comment"># uvicorn main:app --host 0.0.0.0 --port 8080</span>
+            </div>
+        </div>
+
+        <!-- Деплой -->
+        <div id="deployment" class="section">
+            <h2>🚀 Деплой</h2>
+
+            <h3>Dockerfile для бота</h3>
+            <div class="code-block">
+                <span class="code-comment"># Dockerfile</span><br>
+                FROM python:3.11-slim<br>
+                <br>
+                WORKDIR /app<br>
+                <br>
+                COPY requirements.txt .<br>
+                RUN pip install --no-cache-dir -r requirements.txt<br>
+                <br>
+                COPY . .<br>
+                <br>
+                ENV PYTHONPATH=/app<br>
+                ENV PYTHONUNBUFFERED=1<br>
+                <br>
+                CMD [<span class="code-string">"python"</span>, <span class="code-string">"app/main.py"</span>]
+            </div>
+
+            <h3>docker-compose.yml</h3>
+            <div class="code-block">
+                <span class="code-comment"># docker-compose.yml</span><br>
+                version: <span class="code-string">'3.8'</span><br>
+                <br>
+                services:<br>
+                &nbsp;&nbsp;bot:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;build: .<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;container_name: max_bot<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;restart: unless-stopped<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;environment:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- BOT_TOKEN=${BOT_TOKEN}<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- WEBHOOK_URL=${WEBHOOK_URL}<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- REDIS_URL=redis://redis:6379<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;depends_on:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- redis<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;ports:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="code-string">"8080:8080"</span><br>
+                <br>
+                &nbsp;&nbsp;redis:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;image: redis:7-alpine<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;restart: unless-stopped<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;ports:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="code-string">"6379:6379"</span>
+            </div>
+
+            <h3>NGINX конфигурация для вебхука</h3>
+            <div class="code-block">
+                <span class="code-comment"># /etc/nginx/sites-available/your_bot</span><br>
+                server {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;listen 80;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;server_name yourdomain.com;<br>
+                <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;location /webhook {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;proxy_pass http://localhost:8080;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;proxy_set_header Host $host;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;proxy_set_header X-Real-IP $remote_addr;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;proxy_set_header X-Forwarded-Proto $scheme;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                <br>
+                &nbsp;&nbsp;&nbsp;&nbsp;location / {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return 404;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                }
+            </div>
+
+            <h3>Systemd сервис для бота</h3>
+            <div class="code-block">
+                <span class="code-comment"># /etc/systemd/system/max-bot.service</span><br>
+                [Unit]<br>
+                Description=MAX Bot Service<br>
+                After=network.target<br>
+                <br>
+                [Service]<br>
+                Type=simple<br>
+                User=botuser<br>
+                WorkingDirectory=/opt/max-bot<br>
+                Environment=BOT_TOKEN=your_token_here<br>
+                Environment=PYTHONPATH=/opt/max-bot<br>
+                ExecStart=/usr/bin/python3 -m app.main<br>
+                Restart=always<br>
+                RestartSec=10<br>
+                <br>
+                [Install]<br>
+                WantedBy=multi-user.target
+            </div>
+        </div>
+
+        <!-- Методы бота -->
+        <div id="bot-methods" class="section">
+            <h2>🤖 Методы бота (Полный API Reference)</h2>
+
+            <h3>Работа с сообщениями</h3>
+            
+            <div class="api-method">
+                <h4>send_message</h4>
+                <div class="api-signature">
+                    async send_message(<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;chat_id: int = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;user_id: int = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;text: str,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;attachments: List[Attachment] = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;link: NewMessageLink = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;notify: bool = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;parse_mode: ParseMode = None<br>
+                    ) -> SendedMessage
+                </div>
+                
+                <table class="param-table">
+                    <tr><th>Параметр</th><th>Тип</th><th>Обязательный</th><th>Описание</th></tr>
+                    <tr><td>chat_id</td><td>int</td><td>❌*</td><td>ID чата (обязателен если не указан user_id)</td></tr>
+                    <tr><td>user_id</td><td>int</td><td>❌*</td><td>ID пользователя (обязателен если не указан chat_id)</td></tr>
+                    <tr><td>text</td><td>str</td><td>✅</td><td>Текст сообщения</td></tr>
+                    <tr><td>attachments</td><td>List[Attachment]</td><td>❌</td><td>Вложения (фото, видео, файлы)</td></tr>
+                    <tr><td>link</td><td>NewMessageLink</td><td>❌</td><td>Ссылка на сообщение</td></tr>
+                    <tr><td>notify</td><td>bool</td><td>❌</td><td>Отправлять уведомление</td></tr>
+                    <tr><td>parse_mode</td><td>ParseMode</td><td>❌</td><td>Форматирование текста</td></tr>
+                </table>
+                
+                <div class="code-block">
+                    <span class="code-comment"># Пример использования</span><br>
+                    message = <span class="code-keyword">await</span> bot.send_message(<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;chat_id=123456,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;text=<span class="code-string">"Привет, мир!"</span>,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;parse_mode=ParseMode.HTML<br>
+                    )<br>
+                    print(<span class="code-string">f"Сообщение отправлено с ID: {message.id}"</span>)
+                </div>
+            </div>
+
+            <div class="api-method">
+                <h4>edit_message</h4>
+                <div class="api-signature">
+                    async edit_message(<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;message_id: str,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;text: str = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;attachments: List[Attachment] = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;link: NewMessageLink = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;notify: bool = None,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;parse_mode: ParseMode = None<br>
+                    ) -> EditedMessage
+                </div>
+            </div>
+
+            <h3>Работа с чатами</h3>
+            
+            <div class="method-grid">
+                <div class="method-card">
+                    <div class="method-name">get_chats(count=50, marker=None)</div>
+                    <div class="method-desc">Получить список чатов</div>
+                </div>
+                <div class="method-card">
+                    <div class="method-name">get_chat_by_id(chat_id)</div>
+                    <div class="method-desc">Получить чат по ID</div>
+                </div>
+                <div class="method-card">
+                    <div class="method-name">edit_chat(chat_id, title=None, ...)</div>
+                    <div class="method-desc">Изменить параметры чата</div>
+                </div>
+                <div class="method-card">
+                    <div class="method-name">delete_chat(chat_id)</div>
+                    <div class="method-desc">Удалить чат</div>
+                </div>
+            </div>
+
+            <h3>Управление участниками</h3>
+            
+            <div class="method-grid">
+                <div class="method-card">
+                    <div class="method-name">get_chat_members(chat_id)</div>
+                    <div class="method-desc">Получить участников чата</div>
+                </div>
+                <div class="method-card">
+                    <div class="method-name">add_chat_members(chat_id, user_ids)</div>
+                    <div class="method-desc">Добавить участников</div>
+                </div>
+                <div class="method-card">
+                    <div class="method-name">kick_chat_member(chat_id, user_id)</div>
+                    <div class="method-desc">Исключить участника</div>
+                </div>
+                <div class="method-card">
+                    <div class="method-name">get_me_from_chat(chat_id)</div>
+                    <div class="method-desc">Информация о боте в чате</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Плавная прокрутка к якорям
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Подсветка текущего раздела
+        const sections = document.querySelectorAll('.section');
+        const navLinks = document.querySelectorAll('.toc a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (scrollY >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href').slice(1) === current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
