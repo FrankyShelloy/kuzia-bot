@@ -63,5 +63,6 @@ async def main():
     finally:
         await Tortoise.close_connections()
 
+
 if __name__ == '__main__':
     asyncio.run(main())
