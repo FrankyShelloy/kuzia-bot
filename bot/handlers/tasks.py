@@ -1,12 +1,18 @@
 # bot/handlers/tasks.py
+import logging
 from maxapi import Dispatcher
 from maxapi.types import MessageCreated
 from maxapi.filters import F
-from maxapi.filters.command import Command  # ПРАВИЛЬНО!
+from maxapi.filters.command import Command
 from maxapi.enums.sender_action import SenderAction
+from maxapi.types.updates import MessageCallback
+from maxapi.utils.inline_keyboard import InlineKeyboardBuilder
+from maxapi.types.attachments.buttons.callback_button import CallbackButton
 from core.models import Task
 from bot.utils import resolve_chat_id
-from bot.ai_core import get_response
+from bot.ai_core import get_response, decompose_with_ai
+
+logger = logging.getLogger(__name__)
 
 def register_tasks_handlers(dp: Dispatcher):
 
@@ -70,4 +76,61 @@ def register_tasks_handlers(dp: Dispatcher):
         await event.bot.send_action(chat_id=int(chat_id), action=SenderAction.TYPING_ON)
         answer = await get_response(int(chat_id), text)
         await event.message.answer(f"AI: {answer}")
-        await event.message.answer("Оцени от 1 до 5?")
+
+        # === КНОПКИ ОЦЕНКИ ===
+        builder = InlineKeyboardBuilder()
+        for i in range(1, 6):
+            builder.add(CallbackButton(text=str(i), callback_data=str(i)))
+        keyboard = builder.as_markup()
+
+        # ИСПРАВЛЕНО: attachments=[keyboard]
+        await event.bot.send_message(
+            chat_id=int(chat_id),
+            text="Оцени от 1 до 5?",
+            attachments=[keyboard]  # ПРАВИЛЬНО!
+        )
+
+    @dp.message_created(Command('decompose'))
+    async def decompose_task(event: MessageCreated):
+        text = event.message.body.text or ""
+        if not text.startswith('/decompose '):
+            return
+        task_text = text[len('/decompose '):].strip()
+        if not task_text:
+            await event.message.answer("Использование: /decompose <задача>")
+            return
+
+        subtasks = await decompose_with_ai(int(resolve_chat_id(event)), task_text)
+        if not subtasks:
+            await event.message.answer("Не удалось разбить задачу. Попробуй по-другому.")
+            return
+
+        main_task = await Task.create(
+            chat_id=resolve_chat_id(event),
+            user_id=str(event.message.sender.user_id),
+            text=task_text,
+            status='pending'
+        )
+
+        for sub in subtasks:
+            await Task.create(
+                chat_id=resolve_chat_id(event),
+                user_id=str(event.message.sender.user_id),
+                text=sub,
+                status='pending',
+                parent_id=main_task.id
+            )
+
+        lines = [f"• {sub}" for sub in subtasks]
+        await event.message.answer(
+            f"Задача разбита:\n\n"
+            f"**Главная:** {task_text}\n"
+            f"**Подзадачи:**\n" + "\n".join(lines)
+        )
+
+    @dp.message_callback()
+    async def handle_callback(event: MessageCallback):
+        data = event.callback_data
+        if data in ["1", "2", "3", "4", "5"]:
+            await event.message.answer(f"Спасибо за оценку: {data}!")
+            await event.answer()  # Закрываем уведомление
