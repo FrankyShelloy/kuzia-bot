@@ -9,6 +9,7 @@ attrs==25.4.0
 frozenlist==1.8.0
 idna==3.11
 iso8601==2.1.0
+litellm==1.79.3
 magic-filter==1.0.12
 maxapi==0.9.7
 multidict==6.7.0
