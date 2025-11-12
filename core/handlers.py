@@ -77,6 +77,57 @@ def register_handlers(dp, bot):
             attachments=[back_to_menu_markup()]
         )
 
+    @dp.message_created(Command('decompose'))
+    async def decompose_task(event: MessageCreated):
+        try:
+            if should_ignore_message_event_on_start(event):
+                logging.info("Ignoring historical message event on startup (decompose_task)")
+                return
+        except Exception:
+            pass
+        text = event.message.body.text or ""
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2 or not parts[1].strip():
+            await event.message.answer("Использование: /decompose <текст задачи>\nПример: /decompose Организовать поездку на море")
+            return
+        
+        task_text = parts[1].strip()
+        chat_id = _resolve_chat_id(event)
+        user_id = str(event.message.sender.user_id)
+        
+        await event.message.answer("🤖 Анализирую задачу и разбиваю на подзадачи...")
+        
+        from core.ai_core import decompose_with_ai
+        subtasks = await decompose_with_ai(int(chat_id), task_text)
+        
+        if not subtasks:
+            await event.message.answer("❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
+            return
+        
+        main_task = await Task.create(
+            chat_id=chat_id,
+            user_id=user_id,
+            text=task_text,
+            status="pending"
+        )
+        
+        for subtask_text in subtasks:
+            await Task.create(
+                chat_id=chat_id,
+                user_id=user_id,
+                text=subtask_text,
+                status="pending",
+                parent_id=main_task.id
+            )
+        
+        result = f"✅ Задача разбита на {len(subtasks)} подзадач:\n\n"
+        result += f"📋 Главная задача: {task_text}\n\n"
+        result += "Подзадачи:\n"
+        for i, subtask in enumerate(subtasks, 1):
+            result += f"{i}. {subtask}\n"
+        
+        await event.message.answer(result, attachments=[back_to_menu_markup()])
+
     @dp.message_created(F.message.body.text & ~F.message.body.text.startswith('/'))
     async def add_task_plain_text(event: MessageCreated):
         try:
@@ -124,6 +175,52 @@ def register_handlers(dp, bot):
         if state:
             action = state.get('action')
             chat_id = state.get('chat_id')
+
+            if action == 'decompose_input':
+                task_text = text.strip()
+                if not task_text:
+                    await event.message.answer("Пожалуйста, отправьте текст задачи для разбиения.", attachments=[back_to_menu_markup()])
+                    return
+                
+                logging.info("Clearing awaiting keys: user_key=%s chat_key=%s", user_key, chat_key)
+                if user_key:
+                    awaiting_actions.pop(user_key, None)
+                if chat_key:
+                    awaiting_actions.pop(chat_key, None)
+                
+                await event.message.answer("🤖 Анализирую задачу и разбиваю на подзадачи...")
+                
+                from core.ai_core import decompose_with_ai
+                subtasks = await decompose_with_ai(int(chat_id), task_text)
+                
+                if not subtasks:
+                    await event.message.answer("❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
+                    return
+                
+                main_task = await Task.create(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text=task_text,
+                    status="pending"
+                )
+                
+                for subtask_text in subtasks:
+                    await Task.create(
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        text=subtask_text,
+                        status="pending",
+                        parent_id=main_task.id
+                    )
+                
+                result = f"✅ Задача разбита на {len(subtasks)} подзадач:\n\n"
+                result += f"📋 Главная задача: {task_text}\n\n"
+                result += "Подзадачи:\n"
+                for i, subtask in enumerate(subtasks, 1):
+                    result += f"{i}. {subtask}\n"
+                
+                await event.message.answer(result, attachments=[back_to_menu_markup()])
+                return
 
             if action == 'done_selection':
                 ids = []
@@ -469,6 +566,30 @@ def register_handlers(dp, bot):
 
         if payload == 'cmd_add':
             await _respond("Отправьте текст задачи или используйте /add <текст>", attachments=[back_to_menu_markup()])
+            return
+
+        if payload == 'cmd_decompose':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            user_id = derive_user_id(callback_event) or None
+            if user_id is None:
+                try:
+                    user_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    user_id = None
+            state_obj = {'action': 'decompose_input', 'chat_id': str(chat_id)}
+            if user_id is not None:
+                awaiting_actions[str(user_id)] = state_obj
+                logging.info("awaiting state set: user=%s chat=%s action=%s", str(user_id), str(chat_id), 'decompose_input')
+            if chat_id is not None:
+                awaiting_actions[str(chat_id)] = state_obj
+            await _respond("Отправьте задачу для разбиения на подзадачи или используйте /decompose <текст>", attachments=[back_to_menu_markup()])
             return
 
         if payload == 'cmd_done':

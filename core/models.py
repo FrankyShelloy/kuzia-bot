@@ -8,6 +8,7 @@ class Task(Model):
     user_id = fields.CharField(max_length=64, index=True)
     text = fields.TextField()
     status = fields.CharField(max_length=16, default="new", index=True)
+    parent_id = fields.IntField(null=True, default=None)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

@@ -11,6 +11,7 @@ def main_keyboard_markup():
     builder.row(CallbackButton(text="➕ Добавить задачу", payload="cmd_add"))
     builder.row(CallbackButton(text="📋 Список задач", payload="cmd_list"))
     builder.row(CallbackButton(text="✅ Отметить выполненной", payload="cmd_done"))
+    builder.row(CallbackButton(text="🤖 Разбить задачу с AI", payload="cmd_decompose"))
     builder.row(CallbackButton(text="➕ В расписание", payload="cmd_schedule_add"))
     builder.row(CallbackButton(text="📅 Показать расписание", payload="cmd_schedule"))
     builder.row(CallbackButton(text="🗑️ Удалить из расписания", payload="cmd_schedule_remove"))
