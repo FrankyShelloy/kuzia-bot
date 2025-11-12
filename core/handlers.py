@@ -296,7 +296,6 @@ def register_handlers(dp, bot):
         
         task = await Task.filter(id=task_id, chat_id=chat_id).first()
         if task is None:
-            # If not found, interpret the provided number as a 1-based index in the current list
             tasks = await Task.filter(chat_id=chat_id).order_by("status", "created_at")
             if 1 <= task_id <= len(tasks):
                 task = tasks[task_id - 1]
@@ -449,7 +448,6 @@ def register_handlers(dp, bot):
         async def _respond(text: str, attachments=None):
             return await respond(callback_event, text, attachments)
 
-        # Handle simple payloads
         if payload == 'cmd_list':
             chat_id = None
             try:
@@ -463,7 +461,6 @@ def register_handlers(dp, bot):
                 await _respond("Задач пока нет. Добавьте новую командой /add <текст>", attachments=[back_to_menu_markup()])
                 return
             lines = []
-            # Show user-friendly 1..N numbering (indices), keep DB ids internal
             for idx, task in enumerate(tasks, start=1):
                 status = "✅" if task.status == "done" else "🔸"
                 lines.append(f"{idx}. {status} {task.text}")
@@ -617,7 +614,6 @@ def register_handlers(dp, bot):
         await callback_event.message.answer("Нажата неизвестная кнопка")
 
 
-# Shared day names (kept here for handlers that reference them)
 DAY_NAMES = {
     "пн": 0, "понедельник": 0, "пнд": 0, "monday": 0, "mon": 0,
     "вт": 1, "вторник": 1, "втр": 1, "tuesday": 1, "tue": 1,
