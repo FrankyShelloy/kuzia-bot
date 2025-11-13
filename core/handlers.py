@@ -18,6 +18,7 @@ from core.keyboards import (
 )
 from core.models import Task, Schedule
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
+from core.achievements import check_and_unlock_achievements, get_all_achievements
 from maxapi.types import BotStarted, Command, MessageCreated
 from maxapi.filters import F
 
@@ -262,6 +263,15 @@ def register_handlers(dp, bot):
                 if chat_id:
                     completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
                     parts.append(f"\n📊 Всего выполнено задач: {completed_count}")
+                    
+                    # Check for new achievements
+                    new_achievement = await check_and_unlock_achievements(str(chat_id))
+                    if new_achievement:
+                        parts.append(
+                            f"\n\n🎉 НОВОЕ ДОСТИЖЕНИЕ РАЗБЛОКИРОВАНО!\n"
+                            f"{new_achievement.emoji} {new_achievement.title}\n"
+                            f"({new_achievement.milestone} задач выполнено)"
+                        )
                 
                 reply = "\n".join(parts)
                 logging.info("Sending done-selection reply with task action menu to user=%s chat=%s", user_key or chat_key, chat_id)
@@ -600,6 +610,43 @@ def register_handlers(dp, bot):
             if chat_id is not None:
                 awaiting_actions[str(chat_id)] = state_obj
             await _respond("Отправьте задачу для разбиения на подзадачи или используйте /decompose <текст>", attachments=[back_to_menu_markup()])
+            return
+
+        if payload == 'cmd_achievements':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            achievements = await get_all_achievements(str(chat_id))
+            completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+            
+            lines = [
+                "🏆 ВАШИ ДОСТИЖЕНИЯ 🏆\n",
+                f"📊 Выполнено задач: {completed_count}\n"
+            ]
+            
+            unlocked = [a for a in achievements if a["unlocked"]]
+            locked = [a for a in achievements if not a["unlocked"]]
+            
+            if unlocked:
+                lines.append("✨ Разблокированные:\n")
+                for ach in unlocked:
+                    lines.append(f"{ach['emoji']} {ach['title']} — {ach['milestone']} задач")
+            
+            if locked:
+                lines.append("\n🔒 Ещё не открыты:\n")
+                for ach in locked:
+                    lines.append(f"{ach['emoji']} {ach['title']}")
+            
+            if not unlocked and not locked:
+                lines.append("Пока нет достижений. Выполняйте задачи, чтобы разблокировать их!")
+            
+            await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
             return
 
         if payload == 'cmd_done':

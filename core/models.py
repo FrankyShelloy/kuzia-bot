@@ -31,3 +31,17 @@ class Schedule(Model):
         table = "schedules"
 
 
+class Achievement(Model):
+    id = fields.IntField(pk=True)
+    chat_id = fields.CharField(max_length=64, index=True)
+    milestone = fields.IntField(index=True)  # 10, 50, 100, 500, 1000, etc.
+    title = fields.CharField(max_length=200)
+    emoji = fields.CharField(max_length=10, default="🏆")
+    unlocked_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "achievements"
+        unique_together = [("chat_id", "milestone")]
+
+
+
