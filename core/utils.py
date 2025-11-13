@@ -1,6 +1,8 @@
 import os
 import time
+from datetime import datetime
 from typing import Optional
+import pytz
 
 
 IGNORE_HISTORY_ON_START = os.getenv("IGNORE_HISTORY_ON_START", "1") in ("1", "true", "True")
@@ -166,3 +168,148 @@ def _resolve_chat_id(event) -> str:
     if chat_id is None:
         chat_id = recipient.user_id or event.message.sender.user_id
     return str(chat_id)
+
+
+def get_valid_timezones() -> list:
+    """Получить список всех доступных временных зон."""
+    return pytz.all_timezones
+
+
+def is_valid_timezone(tz_name: str) -> bool:
+    """Проверить, является ли строка действительной временной зоной."""
+    try:
+        pytz.timezone(tz_name)
+        return True
+    except pytz.exceptions.UnknownTimeZoneError:
+        return False
+
+
+def get_timezone_offset(tz_name: str) -> Optional[str]:
+    """Получить текущий UTC offset для временной зоны."""
+    try:
+        tz = pytz.timezone(tz_name)
+        offset = datetime.now(tz).strftime('%z')
+        hours = offset[:3]
+        minutes = offset[3:]
+        return f"UTC{hours}:{minutes}" if hours != "UTC" else f"UTC{hours[:-2]}:{minutes}"
+    except Exception:
+        return None
+
+
+def find_timezone_by_keyword(keyword: str) -> Optional[str]:
+    """Найти временную зону по ключевому слову (город, страна)."""
+    keyword = keyword.lower().strip()
+    
+    # Список популярных временных зон по русским названиям
+    popular_timezones = {
+        "москва": "Europe/Moscow",
+        "мск": "Europe/Moscow",
+        "санкт-петербург": "Europe/Moscow",
+        "питер": "Europe/Moscow",
+        "киев": "Europe/Kyiv",
+        "украина": "Europe/Kyiv",
+        "нью-йорк": "America/New_York",
+        "сша": "America/New_York",
+        "лондон": "Europe/London",
+        "англия": "Europe/London",
+        "берлин": "Europe/Berlin",
+        "германия": "Europe/Berlin",
+        "париж": "Europe/Paris",
+        "франция": "Europe/Paris",
+        "токио": "Asia/Tokyo",
+        "япония": "Asia/Tokyo",
+        "пекин": "Asia/Shanghai",
+        "китай": "Asia/Shanghai",
+        "индия": "Asia/Kolkata",
+        "дубай": "Asia/Dubai",
+        "сингапур": "Asia/Singapore",
+        "сидней": "Australia/Sydney",
+        "австралия": "Australia/Sydney",
+        "бангкок": "Asia/Bangkok",
+        "таиланд": "Asia/Bangkok",
+    }
+    
+    # Проверяем словарь популярных зон
+    if keyword in popular_timezones:
+        return popular_timezones[keyword]
+    
+    # Ищем в списке всех зон
+    for tz in pytz.all_timezones:
+        if keyword in tz.lower():
+            return tz
+    
+    return None
+
+
+def format_timezone_list() -> str:
+    """Форматировать список популярных временных зон для отправки пользователю."""
+    popular = [
+        "Europe/Moscow (Москва, +03:00)",
+        "Europe/Kyiv (Киев, +02:00/+03:00)",
+        "Europe/London (Лондон, GMT/BST)",
+        "Europe/Paris (Париж, CET/CEST)",
+        "America/New_York (Нью-Йорк, EST/EDT)",
+        "Asia/Tokyo (Токио, JST)",
+        "Asia/Shanghai (Пекин, CST)",
+        "Asia/Kolkata (Индия, IST)",
+        "Australia/Sydney (Сидней, AEDT/AEST)",
+        "Asia/Dubai (Дубай, GST)",
+    ]
+    return "\n".join(popular)
+
+
+# ════════════════════════════════════════════════════════════════════
+# ФУНКЦИИ ДЛЯ РАБОТЫ С НАПОМИНАНИЯМИ (REMINDER NOTIFICATIONS)
+# ════════════════════════════════════════════════════════════════════
+
+def get_reminder_presets() -> dict:
+    """Получить список предустановленных времён напоминания."""
+    return {
+        0: "Не напоминать",
+        15: "За 15 минут",
+        30: "За 30 минут",
+        60: "За 1 час",
+        120: "За 2 часа",
+        360: "За 6 часов",
+        1440: "За 1 день",
+        2880: "За 2 дня",
+        10080: "За 1 неделю",
+    }
+
+
+def format_reminder_presets() -> str:
+    """Форматировать список предустановок для пользователя."""
+    presets = get_reminder_presets()
+    lines = []
+    for minutes, label in presets.items():
+        if minutes > 0:
+            lines.append(f"{minutes}. {label}")
+    return "\n".join(lines)
+
+
+def is_valid_reminder_minutes(minutes: int) -> bool:
+    """Проверить, является ли значение корректным временем напоминания."""
+    # Разрешаем 0 (без напоминания) и любые значения от 1 до 10080 минут (1 неделя)
+    if minutes == 0:
+        return True
+    if 1 <= minutes <= 10080:
+        return True
+    return False
+
+
+def minutes_to_human_readable(minutes: int) -> str:
+    """Конвертировать минуты в человеческий формат."""
+    if minutes == 0:
+        return "Не напоминать"
+    
+    if minutes < 60:
+        return f"{minutes} минут" if minutes % 10 != 1 else f"{minutes} минута"
+    elif minutes < 1440:
+        hours = minutes // 60
+        return f"{hours} час" if hours == 1 else f"{hours} часов"
+    elif minutes < 10080:
+        days = minutes // 1440
+        return f"{days} день" if days == 1 else f"{days} дней"
+    else:
+        weeks = minutes // 10080
+        return f"{weeks} неделя" if weeks == 1 else f"{weeks} недель"
