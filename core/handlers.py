@@ -1,4 +1,5 @@
 import logging
+import logging
 from typing import Optional
 
 from core.utils import (
@@ -24,11 +25,34 @@ from core.keyboards import (
     action_schedule_remove_menu_markup,
     reminder_choice_markup,
     day_choice_markup,
+    timezone_choice_markup,
+    motivation_style_markup,
 )
 from core.models import Task, Schedule, UserSettings
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
+from core.achievements import check_and_unlock_achievements, get_all_achievements
+from core.motivation import (
+    get_or_create_settings,
+    update_motivation_style,
+    MotivationStyle,
+    generate_motivation_message,
+)
 from maxapi.types import BotStarted, Command, MessageCreated
 from maxapi.filters import F
+
+
+# Константы для дней недели
+DAY_NAMES_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+
+DAY_NAMES = {
+    "пн": 0, "понедельник": 0, "пнд": 0, "monday": 0, "mon": 0,
+    "вт": 1, "вторник": 1, "втр": 1, "tuesday": 1, "tue": 1,
+    "ср": 2, "среда": 2, "срд": 2, "wednesday": 2, "wed": 2,
+    "чт": 3, "четверг": 3, "чтв": 3, "thursday": 3, "thu": 3,
+    "пт": 4, "пятница": 4, "птн": 4, "friday": 4, "fri": 4,
+    "сб": 5, "суббота": 5, "сбт": 5, "saturday": 5, "sat": 5,
+    "вс": 6, "воскресенье": 6, "вск": 6, "sunday": 6, "sun": 6,
+}
 
 
 def register_handlers(dp, bot):
@@ -38,7 +62,7 @@ def register_handlers(dp, bot):
     async def on_bot_started(event: BotStarted):
         await event.bot.send_message(
             chat_id=event.chat_id,
-            text='Привет! Я Кузя — твой персональный помощник по продуктивности и развитию. Начнем с команды /start или /menu!'
+            text='Привет! Я Кузя — твой персональный помощник по продуктивности и развитию. Начнем с команды /start!'
         )
 
     @dp.message_created(Command('start'))
@@ -50,9 +74,28 @@ def register_handlers(dp, bot):
         except Exception:
             pass
 
+        chat_id = _resolve_chat_id(event)
+        user_id = str(event.message.sender.user_id)
+        
+        # Проверяем, есть ли timezone у пользователя
+        user_settings = await UserSettings.filter(user_id=user_id).first()
+        
+        if not user_settings or not user_settings.timezone:
+            # Просим выбрать timezone - это критично для работы бота
+            await event.message.answer(
+                "🌍 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
+                "Сначала выбери свой часовой пояс:",
+                attachments=[timezone_choice_markup()]
+            )
+            return
+        
+        # Если timezone уже установлен, показываем главное меню
+        completed_count = await Task.filter(chat_id=chat_id, status="done").count()
+
         start_message = (
             "👋 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
-            "Ниже — быстрые действия. Нажмите кнопку, чтобы выполнить команду или получить подсказку."
+            f"✅ Выполнено задач: {completed_count}\n\n"
+            "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями."
         )
         await event.message.answer(text=start_message, attachments=[main_keyboard_markup()])
 
@@ -185,11 +228,124 @@ def register_handlers(dp, bot):
             logging.info("Consuming awaiting state by chat_key=%s: %s", chat_key, state)
         
         if not state:
-            logging.info("No awaiting state found for user_key=%s chat_key=%s", user_key, chat_key)
+            logging.info("No awaiting state found for user_key=%s chat_key=%s. awaiting_actions keys: %s", user_key, chat_key, list(awaiting_actions.keys()))
         
         if state:
             action = state.get('action')
             chat_id = state.get('chat_id')
+
+            if action == 'waiting_for_custom_timezone':
+                # Пользователь вводит свой часовой пояс
+                timezone = text.strip()
+                
+                if not timezone:
+                    await event.message.answer("❌ Часовой пояс не может быть пустым")
+                    return
+                
+                # Проверяем валидность timezone
+                if not is_valid_timezone(timezone):
+                    await event.message.answer(
+                        f"❌ Неверный часовой пояс: {timezone}\n\n"
+                        "Примеры правильных часовых поясов:\n"
+                        "• Europe/Moscow\n"
+                        "• Asia/Bangkok\n"
+                        "• America/New_York\n\n"
+                        "Или введите /start для выбора из предложенных вариантов"
+                    )
+                    return
+                
+                # Очищаем состояние
+                if user_key:
+                    awaiting_actions.pop(user_key, None)
+                if chat_key:
+                    awaiting_actions.pop(chat_key, None)
+                
+                # Обновляем или создаём UserSettings
+                if user_id:
+                    user_settings = await UserSettings.filter(user_id=str(user_id)).first()
+                    if user_settings:
+                        user_settings.timezone = timezone
+                        await user_settings.save()
+                    else:
+                        await UserSettings.create(
+                            user_id=str(user_id),
+                            chat_id=str(chat_id),
+                            timezone=timezone
+                        )
+                    logging.info(f"User {user_id} set custom timezone to {timezone}")
+                    await event.message.answer(
+                        f"✅ Часовой пояс установлен: {timezone}\n\n"
+                        "Теперь можешь использовать все функции бота!",
+                        attachments=[main_keyboard_markup()]
+                    )
+                return
+
+            if action == 'custom_reminder_input':
+                # Пользователь вводит количество минут для напоминания
+                reminder_text = text.strip()
+                schedule_id = state.get('schedule_id')
+                logging.info(f"Processing custom_reminder_input: text={reminder_text}, schedule_id={schedule_id}")
+                
+                if not reminder_text:
+                    await event.message.answer(
+                        "❌ Пожалуйста, введите число минут для напоминания",
+                        attachments=[back_to_menu_markup()]
+                    )
+                    return
+                
+                # Пытаемся преобразовать в число
+                try:
+                    reminder_minutes = int(reminder_text)
+                except ValueError:
+                    await event.message.answer(
+                        f"❌ '{reminder_text}' не является числом.\n\n"
+                        "Пожалуйста, введите целое число (например: 10, 30, 60)",
+                        attachments=[back_to_menu_markup()]
+                    )
+                    return
+                
+                # Проверяем валидность
+                if not is_valid_reminder_minutes(reminder_minutes):
+                    await event.message.answer(
+                        f"❌ Неверное значение: {reminder_minutes}\n\n"
+                        "Напоминание должно быть в диапазоне 0-10080 минут",
+                        attachments=[back_to_menu_markup()]
+                    )
+                    return
+                
+                # Очищаем состояние
+                if user_key:
+                    awaiting_actions.pop(user_key, None)
+                if chat_key:
+                    awaiting_actions.pop(chat_key, None)
+                
+                # Обновляем расписание
+                try:
+                    schedule = await Schedule.filter(id=schedule_id, chat_id=chat_id).first()
+                    if schedule:
+                        schedule.reminder_minutes = reminder_minutes
+                        await schedule.save(update_fields=["reminder_minutes", "updated_at"])
+                        
+                        reminder_label = minutes_to_human_readable(reminder_minutes) if reminder_minutes > 0 else "выключено"
+                        day_name = DAY_NAMES_RU[schedule.day_of_week]
+                        
+                        response = f"✅ Расписание сохранено: {day_name} в {schedule.time}\n"
+                        response += f"📝 Задача: {schedule.text}\n"
+                        response += f"⏰ Основное напоминание: за 1 минуту до события\n"
+                        if reminder_minutes > 0:
+                            response += f"⏳ Дополнительное напоминание: {reminder_label}"
+                        
+                        await event.message.answer(response, attachments=[action_schedule_menu_markup()])
+                        logging.info(f"Custom reminder set: schedule_id={schedule_id}, reminder_minutes={reminder_minutes}")
+                    else:
+                        await event.message.answer("❌ Расписание не найдено", attachments=[back_to_menu_markup()])
+                except Exception as e:
+                    logging.exception("Ошибка при сохранении кастомного напоминания")
+                    await event.message.answer(
+                        f"❌ Ошибка при сохранении: {str(e)}",
+                        attachments=[back_to_menu_markup()]
+                    )
+                return
 
             if action == 'decompose_input':
                 task_text = text.strip()
@@ -268,6 +424,19 @@ def register_handlers(dp, bot):
                     parts.append(f"✅ Отмечены как выполненные: {', '.join(map(str, succeeded))}")
                 if failed:
                     parts.append(f"⚠️ Необработаны/не найдены: {', '.join(map(str, failed))}")
+                
+                if chat_id:
+                    completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                    parts.append(f"\n📊 Всего выполнено задач: {completed_count}")
+                    
+                    new_achievement = await check_and_unlock_achievements(str(chat_id))
+                    if new_achievement:
+                        parts.append(
+                            f"\n\n🎉 НОВОЕ ДОСТИЖЕНИЕ РАЗБЛОКИРОВАНО!\n"
+                            f"{new_achievement.emoji} {new_achievement.title}\n"
+                            f"({new_achievement.milestone} задач выполнено)"
+                        )
+                
                 reply = "\n".join(parts)
                 logging.info("Sending done-selection reply with task action menu to user=%s chat=%s", user_key or chat_key, chat_id)
                 await event.message.answer(reply, attachments=[action_menu_markup()])
@@ -351,11 +520,17 @@ def register_handlers(dp, bot):
                     )
                     return
                 
-                # Очищаем старое состояние перед установкой нового
-                if user_key:
-                    awaiting_actions.pop(user_key, None)
-                if chat_key:
-                    awaiting_actions.pop(chat_key, None)
+                # Очищаем ВСЕ старые состояния перед установкой waiting_for_text
+                keys_to_remove = []
+                for key in list(awaiting_actions.keys()):
+                    state_check = awaiting_actions.get(key)
+                    if state_check and state_check.get('chat_id') == chat_id:
+                        keys_to_remove.append(key)
+                
+                for key in keys_to_remove:
+                    awaiting_actions.pop(key, None)
+                
+                logging.info("Clearing all old states before waiting_for_text: keys_removed=%s", keys_to_remove)
                 
                 # Теперь ждём текста задачи
                 if user_key:
@@ -401,11 +576,22 @@ def register_handlers(dp, bot):
                     )
                     return
                 
-                # Получаем timezone пользователя
+                # Получаем timezone пользователя или создаём с default
                 user_settings = await UserSettings.filter(user_id=user_id).first()
-                user_timezone = user_settings.timezone if user_settings else "UTC"
+                if user_settings:
+                    user_timezone = user_settings.timezone
+                else:
+                    # Если timezone не установлена, создаём с Asia/Bangkok
+                    await UserSettings.create(
+                        user_id=user_id,
+                        chat_id=chat_id,
+                        timezone="Asia/Bangkok"
+                    )
+                    user_timezone = "Asia/Bangkok"
+                    logging.info(f"Created default UserSettings for user {user_id} with timezone Asia/Bangkok")
                 
                 # Создаём расписание
+                logging.info(f"About to create schedule: day_of_week={day_of_week}, time={time_str}, text={task_text}")
                 schedule = await Schedule.create(
                     chat_id=chat_id,
                     user_id=user_id,
@@ -413,15 +599,23 @@ def register_handlers(dp, bot):
                     day_of_week=day_of_week,
                     time=time_str,
                     reminder_minutes=0,
-                    timezone=user_timezone
+                    timezone=user_timezone,
+                    enabled=True
                 )
+                logging.info(f"Created schedule: id={schedule.id}, user={user_id}, chat={chat_id}, day={day_of_week}, time={time_str}, tz={user_timezone}")
+                logging.info(f"Schedule model day_of_week AFTER create: {schedule.day_of_week}")
                 
-                # Очищаем состояние
-                logging.info("Clearing awaiting keys after schedule creation: user_key=%s chat_key=%s", user_key, chat_key)
-                if user_key:
-                    awaiting_actions.pop(user_key, None)
-                if chat_key:
-                    awaiting_actions.pop(chat_key, None)
+                # Очищаем ВСЕ состояния перед установкой reminder_choice
+                keys_to_remove = []
+                for key in list(awaiting_actions.keys()):
+                    state_check = awaiting_actions.get(key)
+                    if state_check and state_check.get('chat_id') == chat_id:
+                        keys_to_remove.append(key)
+                
+                for key in keys_to_remove:
+                    awaiting_actions.pop(key, None)
+                
+                logging.info("Clearing all old states before reminder_choice: keys_removed=%s", keys_to_remove)
                 
                 # Спрашиваем напоминание через кнопки
                 from core.handlers import DAY_NAMES_RU
@@ -520,6 +714,8 @@ def register_handlers(dp, bot):
             if action == 'custom_reminder_input':
                 # Пользователь вводит кастомное значение напоминания
                 reminder_text = text.strip().lower()
+                schedule_id = state.get('schedule_id')
+                chat_id = state.get('chat_id')
                 
                 # Обработка отключения напоминания
                 if reminder_text in ('off', 'none', '0', 'выкл', 'выключить'):
@@ -541,12 +737,8 @@ def register_handlers(dp, bot):
                     )
                     return
                 
-                schedule_id = state.get('schedule_id')
-                chat_id = state.get('chat_id')
-                
                 # Обновляем расписание
                 try:
-                    from core.handlers import DAY_NAMES_RU
                     schedule = await Schedule.filter(id=schedule_id, chat_id=chat_id).first()
                     if schedule:
                         schedule.reminder_minutes = reminder_minutes
@@ -574,7 +766,16 @@ def register_handlers(dp, bot):
                     await event.message.answer(f"❌ Ошибка: {str(e)}", attachments=[back_to_menu_markup()])
                 return
 
-            # Если мы здесь - значит состояние не было обработано ни одним условием выше
+            if action == 'reminder_choice':
+                # Это состояние должно обрабатываться только через callback (кнопки)
+                # Если текст отправлен - просим нажать кнопку
+                await event.message.answer(
+                    "👆 Пожалуйста, выберите напоминание через кнопки выше.",
+                    attachments=[back_to_menu_markup()]
+                )
+                return
+
+            # Если состояние не было обработано выше
             logging.warning("Unhandled state action: %s", action)
             await event.message.answer(
                 f"⚠️ Неизвестное состояние: {action}. Начните заново.",
@@ -855,6 +1056,65 @@ def register_handlers(dp, bot):
         except Exception:
             pass
 
+        async def recalculate_schedule_weekdays(chat_id: str, new_timezone: str):
+            """Пересчитывает day_of_week для всех расписаний пользователя при смене timezone"""
+            from datetime import datetime, timedelta, time as datetime_time
+            import pytz
+            
+            schedules = await Schedule.filter(chat_id=chat_id).all()
+            if not schedules:
+                logging.info(f"No schedules found for chat_id={chat_id}, nothing to recalculate")
+                return
+            
+            old_tz = None
+            try:
+                # Получаем предыдущий timezone пользователя из последнего расписания
+                old_tz_name = schedules[0].timezone
+                old_tz = pytz.timezone(old_tz_name) if old_tz_name else pytz.UTC
+            except:
+                old_tz = pytz.UTC
+            
+            new_tz = pytz.timezone(new_timezone)
+            
+            logging.info(f"Recalculating weekdays for {len(schedules)} schedules: old_tz={old_tz}, new_tz={new_tz}")
+            
+            for schedule in schedules:
+                # Получаем время из расписания
+                time_parts = schedule.time.split(':')
+                hour, minute = int(time_parts[0]), int(time_parts[1])
+                
+                # Создаём "якорную" дату в старом timezone (берём сегодня по старому timezone)
+                now_utc = datetime.now(pytz.UTC)
+                now_old_tz = now_utc.astimezone(old_tz)
+                anchor_date = now_old_tz.date()
+                
+                # Создаём datetime с днём недели из расписания и временем расписания в старом timezone
+                # Нужно найти дату которая соответствует old day_of_week
+                current_old_weekday = anchor_date.weekday()
+                target_old_weekday = schedule.day_of_week
+                days_offset = target_old_weekday - current_old_weekday
+                if days_offset < 0:
+                    days_offset += 7
+                
+                schedule_date_old_tz_naive = anchor_date + timedelta(days=days_offset) if days_offset > 0 else anchor_date
+                schedule_datetime_old_tz = old_tz.localize(datetime.combine(schedule_date_old_tz_naive, datetime_time(hour, minute)))
+                
+                # Конвертируем в новый timezone
+                schedule_datetime_new_tz = schedule_datetime_old_tz.astimezone(new_tz)
+                
+                # Получаем день недели в новом timezone
+                new_weekday = schedule_datetime_new_tz.weekday()
+                
+                old_day = DAY_NAMES_RU[schedule.day_of_week]
+                new_day = DAY_NAMES_RU[new_weekday]
+                
+                logging.info(f"Schedule id={schedule.id}: old_day={old_day}(weekday={schedule.day_of_week}) -> new_day={new_day}(weekday={new_weekday}), time={schedule.time}")
+                
+                # Обновляем день недели и timezone
+                schedule.day_of_week = new_weekday
+                schedule.timezone = new_timezone
+                await schedule.save(update_fields=["day_of_week", "timezone", "updated_at"])
+
         payload, found_at = extract_payload(callback_event)
         if payload is None:
             nested = getattr(callback_event, 'data', None) or getattr(callback_event, 'payload', None)
@@ -921,6 +1181,153 @@ def register_handlers(dp, bot):
             await _respond("Отправьте задачу для разбиения на подзадачи или используйте /decompose <текст>", attachments=[back_to_menu_markup()])
             return
 
+        if payload == 'cmd_achievements':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            achievements = await get_all_achievements(str(chat_id))
+            completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+            
+            lines = [
+                "🏆 ВАШИ ДОСТИЖЕНИЯ 🏆\n",
+                f"📊 Выполнено задач: {completed_count}\n"
+            ]
+            
+            unlocked = [a for a in achievements if a["unlocked"]]
+            locked = [a for a in achievements if not a["unlocked"]]
+            
+            if unlocked:
+                lines.append("✨ Разблокированные:\n")
+                for ach in unlocked:
+                    lines.append(f"{ach['emoji']} {ach['title']} — {ach['milestone']} задач")
+            
+            if locked:
+                lines.append("\n🔒 Ещё не открыты:\n")
+                for ach in locked:
+                    lines.append(f"{ach['emoji']} {ach['title']}")
+            
+            if not unlocked and not locked:
+                lines.append("Пока нет достижений. Выполняйте задачи, чтобы разблокировать их!")
+            
+            await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
+            return
+
+        if payload == 'cmd_motivation':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            settings = await get_or_create_settings(str(chat_id))
+            
+            style_names = {
+                "friendly": "😊 Дружеский",
+                "neutral": "😐 Нейтральный",
+                "aggressive": "💪 Агрессивный"
+            }
+            
+            status = "включены ✅" if settings.enabled else "выключены 🔕"
+            message = (
+                "💬 СТИЛЬ МОТИВАЦИИ\n\n"
+                f"Текущий стиль: {style_names.get(settings.style, settings.style)}\n"
+                f"Напоминания: {status}\n\n"
+                "Я буду напоминать вам о невыполненных задачах 2-3 раза в день.\n"
+                "Выберите стиль напоминаний:"
+            )
+            
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            return
+
+        if payload and payload.startswith('set_style_'):
+            style = payload.replace('set_style_', '')
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            await update_motivation_style(str(chat_id), MotivationStyle(style))
+            
+            style_names = {
+                "friendly": "😊 Дружеский",
+                "neutral": "😐 Нейтральный",
+                "aggressive": "💪 Агрессивный"
+            }
+            
+            message = (
+                f"✅ Стиль мотивации изменен на: {style_names.get(style, style)}\n\n"
+                "Теперь мои напоминания будут в этом стиле!"
+            )
+            
+            settings = await get_or_create_settings(str(chat_id))
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            return
+
+        if payload == 'toggle_reminders':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            from core.motivation import toggle_reminders
+            settings = await get_or_create_settings(str(chat_id))
+            new_state = not settings.enabled
+            await toggle_reminders(str(chat_id), new_state)
+            
+            if new_state:
+                message = "✅ Напоминания включены!\n\nТеперь я буду мотивировать вас 2-3 раза в день."
+            else:
+                message = "🔕 Напоминания выключены.\n\nЯ не буду напоминать о задачах до тех пор, пока вы не включите их снова."
+            
+            settings = await get_or_create_settings(str(chat_id))
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            return
+
+        if payload == 'cmd_change_timezone':
+            user_id = derive_user_id(callback_event) or None
+            if user_id is None:
+                try:
+                    user_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    user_id = None
+            
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            # Получаем текущий timezone
+            current_tz = "не установлен"
+            if user_id:
+                user_settings = await UserSettings.filter(user_id=str(user_id)).first()
+                if user_settings:
+                    current_tz = user_settings.timezone
+            
+            message = f"🌍 Текущий часовой пояс: {current_tz}\n\nВыберите новый часовой пояс:"
+            await _respond(message, attachments=[timezone_choice_markup()])
+            return
+
         if payload == 'cmd_done':
             chat_id = derive_chat_id(callback_event) or None
             if chat_id is None:
@@ -972,6 +1379,19 @@ def register_handlers(dp, bot):
                     user_id = str(callback_event.message.sender.user_id)
                 except Exception:
                     user_id = None
+            
+            # ОЧИЩАЕМ ВСЕ состояния для этого чата
+            # Удаляем все ключи которые относятся к этому чату
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state = awaiting_actions.get(key)
+                if state and state.get('chat_id') == str(chat_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
+                logging.info("Removed old state for key: %s", key)
+            
             state_obj = {'action': 'waiting_for_day', 'chat_id': str(chat_id)}
             if user_id is not None:
                 awaiting_actions[str(user_id)] = state_obj
@@ -1042,57 +1462,102 @@ def register_handlers(dp, bot):
             return
 
         # Обработка выбора дня при добавлении расписания
-        if payload and (payload.startswith('day_') or payload == 'day_tomorrow' or payload == 'day_after_tomorrow'):
+        if payload and (payload.startswith('day_') or payload in ['day_today', 'day_tomorrow', 'day_after_tomorrow']):
             user_id = derive_user_id(callback_event)
             user_key = str(user_id) if user_id else None
             chat_key = derive_chat_id(callback_event)
             chat_key = str(chat_key) if chat_key else None
             
-            logging.debug(f"Day choice callback: user_key={user_key}, chat_key={chat_key}, payload={payload}")
+            logging.info(f"Day choice callback: user_key={user_key}, chat_key={chat_key}, payload={payload}")
+            logging.info(f"awaiting_actions BEFORE clear: {list(awaiting_actions.keys())}")
             
-            # Определяем день недели
+            # Определяем день недели и дату
             from datetime import datetime, timedelta
             import pytz
             
+            # Получаем часовой пояс пользователя
+            user_settings = await UserSettings.filter(chat_id=chat_key).first()
+            user_tz_name = user_settings.timezone if user_settings and user_settings.timezone else 'UTC'
+            user_tz = pytz.timezone(user_tz_name)
+            
+            # Получаем текущее время в часовом поясе пользователя
+            now_utc = datetime.now(pytz.UTC)
+            now_user = now_utc.astimezone(user_tz)
+            
+            logging.info(f"Day choice BEFORE calculation: payload={payload}")
+            logging.info(f"Timezone calculation: chat_id={chat_key}, tz={user_tz_name}")
+            logging.info(f"UTC time: {now_utc.strftime('%Y-%m-%d %H:%M:%S %A')} (weekday={now_utc.weekday()})")
+            logging.info(f"User time ({user_tz_name}): {now_user.strftime('%Y-%m-%d %H:%M:%S %A')} (weekday={now_user.weekday()})")
+            
             day_of_week = None
-            if payload == 'day_tomorrow':
-                today_utc = datetime.now(pytz.UTC)
-                tomorrow_utc = today_utc + timedelta(days=1)
-                day_of_week = tomorrow_utc.weekday()
+            target_date = None
+            
+            if payload == 'day_today':
+                day_of_week = now_user.weekday()
+                target_date = now_user.date()
+                logging.info(f"Calculated 'day_today': weekday={day_of_week}, date={target_date}, name={DAY_NAMES_RU[day_of_week]}")
+            elif payload == 'day_tomorrow':
+                tomorrow_user = now_user + timedelta(days=1)
+                day_of_week = tomorrow_user.weekday()
+                target_date = tomorrow_user.date()
+                logging.info(f"Calculated 'day_tomorrow': weekday={day_of_week}, date={target_date}, name={DAY_NAMES_RU[day_of_week]}")
             elif payload == 'day_after_tomorrow':
-                today_utc = datetime.now(pytz.UTC)
-                day_after_utc = today_utc + timedelta(days=2)
-                day_of_week = day_after_utc.weekday()
+                day_after_user = now_user + timedelta(days=2)
+                day_of_week = day_after_user.weekday()
+                target_date = day_after_user.date()
+                logging.info(f"Calculated 'day_after_tomorrow': weekday={day_of_week}, date={target_date}, name={DAY_NAMES_RU[day_of_week]}")
             elif payload.startswith('day_'):
                 try:
                     day_of_week = int(payload.split('_')[1])
                 except Exception:
                     await _respond("❌ Ошибка при обработке выбора дня", attachments=[back_to_menu_markup()])
                     return
+                # Если выбран конкретный день недели - устанавливаем на следующую неделю
+                today_weekday = now_user.weekday()
+                days_ahead = day_of_week - today_weekday
+                if days_ahead <= 0:  # Если день уже прошёл на этой неделе
+                    days_ahead += 7
+                target_date = (now_user + timedelta(days=days_ahead)).date()
+                logging.info(f"Calculated direct day select: payload={payload}, target_weekday={day_of_week}, today_weekday={today_weekday}, days_ahead={days_ahead}, target_date={target_date}, name={DAY_NAMES_RU[day_of_week]}")
             
             if day_of_week is None:
                 await _respond("❌ Не удалось определить день", attachments=[back_to_menu_markup()])
                 return
             
-            # Очищаем старое состояние если оно было
-            if user_key:
-                awaiting_actions.pop(user_key, None)
-            if chat_key:
-                awaiting_actions.pop(chat_key, None)
+            # Очищаем ВСЕ старые состояния перед установкой waiting_for_time
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state = awaiting_actions.get(key)
+                if state and state.get('chat_id') == str(chat_key):
+                    keys_to_remove.append(key)
             
-            logging.info("Clearing old state before setting waiting_for_time: user_key=%s chat_key=%s", user_key, chat_key)
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
             
-            # Сохраняем выбранный день в состояние
+            logging.info("Clearing old state before setting waiting_for_time: user_key=%s chat_key=%s keys_removed=%s", user_key, chat_key, keys_to_remove)
+            
+            # Сохраняем выбранный день и дату в состояние
             if user_key:
-                awaiting_actions[user_key] = {'action': 'waiting_for_time', 'day_of_week': day_of_week, 'chat_id': chat_key}
-                logging.info("Set waiting_for_time by user_key=%s: day=%s", user_key, day_of_week)
+                awaiting_actions[user_key] = {
+                    'action': 'waiting_for_time',
+                    'day_of_week': day_of_week,
+                    'target_date': str(target_date),
+                    'chat_id': chat_key
+                }
+                logging.info("Set waiting_for_time by user_key=%s: day=%s date=%s", user_key, day_of_week, target_date)
             if chat_key:
-                awaiting_actions[chat_key] = {'action': 'waiting_for_time', 'day_of_week': day_of_week, 'chat_id': chat_key}
-                logging.info("Set waiting_for_time by chat_key=%s: day=%s", chat_key, day_of_week)
+                awaiting_actions[chat_key] = {
+                    'action': 'waiting_for_time',
+                    'day_of_week': day_of_week,
+                    'target_date': str(target_date),
+                    'chat_id': chat_key
+                }
+                logging.info("Set waiting_for_time by chat_key=%s: day=%s date=%s", chat_key, day_of_week, target_date)
             
             day_name = DAY_NAMES_RU[day_of_week]
+            date_str = target_date.strftime("%d.%m.%Y") if target_date else ""
             await _respond(
-                f"✅ Выбран день: {day_name}\n\n⏰ Теперь укажите время в формате HH:MM\nНапример: 09:00",
+                f"✅ Выбран день: {day_name} ({date_str})\n\n⏰ Теперь укажите время в формате HH:MM\nНапример: 09:00",
                 attachments=[back_to_menu_markup()]
             )
             logging.info("awaiting state set: user=%s chat=%s action=waiting_for_time day=%s", user_key, chat_key, day_of_week)
@@ -1144,7 +1609,18 @@ def register_handlers(dp, bot):
                     awaiting_actions[user_key] = {'action': 'custom_reminder_input', 'schedule_id': schedule_id, 'chat_id': chat_id}
                 if chat_key:
                     awaiting_actions[chat_key] = {'action': 'custom_reminder_input', 'schedule_id': schedule_id, 'chat_id': chat_id}
-                await _respond("Введите количество минут для напоминания (0-10080):", attachments=[back_to_menu_markup()])
+                logging.info(f"Custom reminder selected: user_key={user_key}, chat_key={chat_key}, schedule_id={schedule_id}")
+                await _respond(
+                    "⏰ Введите количество минут для дополнительного напоминания:\n\n"
+                    "Примеры:\n"
+                    "• 10 (напомнить за 10 минут)\n"
+                    "• 30 (напомнить за 30 минут)\n"
+                    "• 120 (напомнить за 2 часа)\n"
+                    "• 0 (без дополнительного напоминания)\n\n"
+                    "Максимум 10080 минут (7 дней)",
+                    attachments=[back_to_menu_markup()]
+                )
+                logging.info(f"Custom reminder message sent")
                 return
             
             # Обработка фиксированных значений
@@ -1186,12 +1662,99 @@ def register_handlers(dp, bot):
                 await _respond("❌ Ошибка при сохранении: " + str(e), attachments=[back_to_menu_markup()])
             return
 
+        # Обработчик выбора часового пояса
+        if payload and payload.startswith('tz_'):
+            user_id = derive_user_id(callback_event) or None
+            if user_id is None:
+                try:
+                    user_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    user_id = None
+            
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            if payload == 'tz_custom':
+                # Просим ввести свой timezone
+                state_obj = {'action': 'waiting_for_custom_timezone', 'chat_id': str(chat_id)}
+                if user_id:
+                    awaiting_actions[str(user_id)] = state_obj
+                if chat_id:
+                    awaiting_actions[str(chat_id)] = state_obj
+                await _respond(
+                    "Введите часовой пояс (например, Europe/Moscow, Asia/Bangkok, America/New_York):\n\n"
+                    "Или введите /start для выбора из предложенных вариантов",
+                    attachments=[back_to_menu_markup()]
+                )
+                return
+            
+            # Извлекаем timezone из payload
+            timezone = payload[3:]  # Удаляем 'tz_' префикс
+            
+            # Проверяем валидность timezone
+            if not is_valid_timezone(timezone):
+                await _respond(
+                    f"❌ Неверный часовой пояс: {timezone}\n\n"
+                    "Попробуйте выбрать из предложенных вариантов:",
+                    attachments=[timezone_choice_markup()]
+                )
+                return
+            
+            # Обновляем или создаём UserSettings
+            if user_id:
+                user_settings = await UserSettings.filter(user_id=str(user_id)).first()
+                if user_settings:
+                    user_settings.timezone = timezone
+                    await user_settings.save()
+                    # Пересчитываем день недели для всех расписаний
+                    await recalculate_schedule_weekdays(str(chat_id), timezone)
+                else:
+                    await UserSettings.create(
+                        user_id=str(user_id),
+                        chat_id=str(chat_id),
+                        timezone=timezone
+                    )
+                logging.info(f"User {user_id} set timezone to {timezone}")
+                await _respond(
+                    f"✅ Часовой пояс установлен: {timezone}\n\n"
+                    "Теперь можешь использовать все функции бота!",
+                    attachments=[main_keyboard_markup()]
+                )
+            return
+
         if payload == 'back_to_menu':
-            pretty_text = (
-                "🏠 Главное меню — Кузя\n"
-                "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями.\n"
-                "Чтобы быстро добавить задачу — просто пришлите её текст."
-            )
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                try:
+                    chat_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    chat_id = None
+            
+            if chat_id:
+                completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                pretty_text = (
+                    "🏠 Главное меню — Кузя\n"
+                    f"✅ Выполнено задач: {completed_count}\n\n"
+                    "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями.\n"
+                    "Чтобы быстро добавить задачу — просто пришлите её текст."
+                )
+            else:
+                pretty_text = (
+                    "🏠 Главное меню — Кузя\n"
+                    "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями.\n"
+                    "Чтобы быстро добавить задачу — просто пришлите её текст."
+                )
             await _respond(pretty_text, attachments=[main_keyboard_markup()])
             return
 
@@ -1234,16 +1797,3 @@ def register_handlers(dp, bot):
             f"💡 Совет: Периодически очищайте старые расписания, чтобы не захламлять БД"
         )
         logging.info(f"Cleanup: deleted {deleted} schedules from {chat_id}")
-
-
-DAY_NAMES = {
-    "пн": 0, "понедельник": 0, "пнд": 0, "monday": 0, "mon": 0,
-    "вт": 1, "вторник": 1, "втр": 1, "tuesday": 1, "tue": 1,
-    "ср": 2, "среда": 2, "срд": 2, "wednesday": 2, "wed": 2,
-    "чт": 3, "четверг": 3, "чтв": 3, "thursday": 3, "thu": 3,
-    "пт": 4, "пятница": 4, "птн": 4, "friday": 4, "fri": 4,
-    "сб": 5, "суббота": 5, "сбт": 5, "saturday": 5, "sat": 5,
-    "вс": 6, "воскресенье": 6, "вск": 6, "sunday": 6, "sun": 6,
-}
-
-DAY_NAMES_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
