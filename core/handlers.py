@@ -15,10 +15,17 @@ from core.keyboards import (
     action_menu_markup,
     action_schedule_menu_markup,
     action_schedule_remove_menu_markup,
+    motivation_style_markup,
 )
 from core.models import Task, Schedule
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
 from core.achievements import check_and_unlock_achievements, get_all_achievements
+from core.motivation import (
+    get_or_create_settings,
+    update_motivation_style,
+    MotivationStyle,
+    generate_motivation_message,
+)
 from maxapi.types import BotStarted, Command, MessageCreated
 from maxapi.filters import F
 
@@ -259,12 +266,10 @@ def register_handlers(dp, bot):
                 if failed:
                     parts.append(f"⚠️ Необработаны/не найдены: {', '.join(map(str, failed))}")
                 
-                # Add completed tasks counter for the chat
                 if chat_id:
                     completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
                     parts.append(f"\n📊 Всего выполнено задач: {completed_count}")
                     
-                    # Check for new achievements
                     new_achievement = await check_and_unlock_achievements(str(chat_id))
                     if new_achievement:
                         parts.append(
@@ -649,6 +654,88 @@ def register_handlers(dp, bot):
             await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
             return
 
+        if payload == 'cmd_motivation':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            settings = await get_or_create_settings(str(chat_id))
+            
+            style_names = {
+                "friendly": "😊 Дружеский",
+                "neutral": "😐 Нейтральный",
+                "aggressive": "💪 Агрессивный"
+            }
+            
+            status = "включены ✅" if settings.enabled else "выключены 🔕"
+            message = (
+                "💬 СТИЛЬ МОТИВАЦИИ\n\n"
+                f"Текущий стиль: {style_names.get(settings.style, settings.style)}\n"
+                f"Напоминания: {status}\n\n"
+                "Я буду напоминать вам о невыполненных задачах 2-3 раза в день.\n"
+                "Выберите стиль напоминаний:"
+            )
+            
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            return
+
+        if payload and payload.startswith('set_style_'):
+            style = payload.replace('set_style_', '')
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            await update_motivation_style(str(chat_id), MotivationStyle(style))
+            
+            style_names = {
+                "friendly": "😊 Дружеский",
+                "neutral": "😐 Нейтральный",
+                "aggressive": "💪 Агрессивный"
+            }
+            
+            message = (
+                f"✅ Стиль мотивации изменен на: {style_names.get(style, style)}\n\n"
+                "Теперь мои напоминания будут в этом стиле!"
+            )
+            
+            settings = await get_or_create_settings(str(chat_id))
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            return
+
+        if payload == 'toggle_reminders':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            
+            from core.motivation import toggle_reminders
+            settings = await get_or_create_settings(str(chat_id))
+            new_state = not settings.enabled
+            await toggle_reminders(str(chat_id), new_state)
+            
+            if new_state:
+                message = "✅ Напоминания включены!\n\nТеперь я буду мотивировать вас 2-3 раза в день."
+            else:
+                message = "🔕 Напоминания выключены.\n\nЯ не буду напоминать о задачах до тех пор, пока вы не включите их снова."
+            
+            settings = await get_or_create_settings(str(chat_id))
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            return
+
         if payload == 'cmd_done':
             chat_id = derive_chat_id(callback_event) or None
             if chat_id is None:
@@ -771,7 +858,6 @@ def register_handlers(dp, bot):
             return
 
         if payload == 'back_to_menu':
-            # Get chat_id to count tasks
             chat_id = derive_chat_id(callback_event) or None
             if chat_id is None:
                 try:
