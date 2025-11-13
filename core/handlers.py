@@ -41,8 +41,12 @@ def register_handlers(dp, bot):
         except Exception:
             pass
 
+        chat_id = _resolve_chat_id(event)
+        completed_count = await Task.filter(chat_id=chat_id, status="done").count()
+
         start_message = (
             "👋 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
+            f"✅ Выполнено задач: {completed_count}\n\n"
             "Ниже — быстрые действия. Нажмите кнопку, чтобы выполнить команду или получить подсказку."
         )
         await event.message.answer(text=start_message, attachments=[main_keyboard_markup()])
@@ -253,6 +257,12 @@ def register_handlers(dp, bot):
                     parts.append(f"✅ Отмечены как выполненные: {', '.join(map(str, succeeded))}")
                 if failed:
                     parts.append(f"⚠️ Необработаны/не найдены: {', '.join(map(str, failed))}")
+                
+                # Add completed tasks counter for the chat
+                if chat_id:
+                    completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                    parts.append(f"\n📊 Всего выполнено задач: {completed_count}")
+                
                 reply = "\n".join(parts)
                 logging.info("Sending done-selection reply with task action menu to user=%s chat=%s", user_key or chat_key, chat_id)
                 await event.message.answer(reply, attachments=[action_menu_markup()])
@@ -714,11 +724,33 @@ def register_handlers(dp, bot):
             return
 
         if payload == 'back_to_menu':
-            pretty_text = (
-                "🏠 Главное меню — Кузя\n"
-                "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями.\n"
-                "Чтобы быстро добавить задачу — просто пришлите её текст."
-            )
+            # Get chat_id to count tasks
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                try:
+                    chat_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    chat_id = None
+            
+            if chat_id:
+                completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                pretty_text = (
+                    "🏠 Главное меню — Кузя\n"
+                    f"✅ Выполнено задач: {completed_count}\n\n"
+                    "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями.\n"
+                    "Чтобы быстро добавить задачу — просто пришлите её текст."
+                )
+            else:
+                pretty_text = (
+                    "🏠 Главное меню — Кузя\n"
+                    "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями.\n"
+                    "Чтобы быстро добавить задачу — просто пришлите её текст."
+                )
             await _respond(pretty_text, attachments=[main_keyboard_markup()])
             return
 
