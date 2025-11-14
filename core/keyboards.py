@@ -103,15 +103,15 @@ def timezone_choice_markup():
     builder = InlineKeyboardBuilder()
     # Города РФ от востока к западу (Владивосток → Калининград)
     timezones = [
-        (" Владивосток (UTC+10)", "Asia/Vladivostok"),
-        (" Якутск (UTC+9)", "Asia/Yakutsk"),
+        ("🌅 Владивосток (UTC+10)", "Asia/Vladivostok"),
+        ("🏔️ Якутск (UTC+9)", "Asia/Yakutsk"),
         ("❄️ Иркутск (UTC+8)", "Asia/Irkutsk"),
-        (" Красноярск (UTC+7)", "Asia/Krasnoyarsk"),
-        (" Новосибирск (UTC+7)", "Asia/Novosibirsk"),
+        ("🏭 Красноярск (UTC+7)", "Asia/Krasnoyarsk"),
+        ("🏙️ Новосибирск (UTC+7)", "Asia/Novosibirsk"),
         ("⛰️ Омск (UTC+6)", "Asia/Omsk"),
         ("⛰️ Екатеринбург (UTC+5)", "Asia/Yekaterinburg"),
         ("🏛️ Самара (UTC+4)", "Europe/Samara"),
-        ("�️ Москва (UTC+3)", "Europe/Moscow"),
+        ("🏛️ Москва (UTC+3)", "Europe/Moscow"),
         ("🏰 Калининград (UTC+2)", "Europe/Kaliningrad"),
     ]
     for text, tz in timezones:
