@@ -77,7 +77,7 @@ async def send_reminders(bot: Bot):
                     try:
                         await bot.send_message(
                             chat_id=int(sched.chat_id),
-                            text=f"🔔 НАПОМИНАНИЕ: {sched.text}\n⏰ Время: {sched.time} ({sched.timezone})"
+                            text=f"🔔 НАПОМИНАНИЕ: {sched.text}\n⏰ Время: {sched.time}"
                         )
                         logger.warning(f"✅ SENT MAIN REMINDER: schedule_id={sched.id}, chat_id={sched.chat_id}, text='{sched.text}'")
                         sent_main_reminders.add(reminder_key)

@@ -62,14 +62,14 @@ def motivation_style_markup(current_style: str, enabled: bool = True):
 
 
 def reminder_choice_markup():
-    """Return markup with preset reminder options and custom input option."""
+    """Return markup with preset reminder options."""
     builder = InlineKeyboardBuilder()
     builder.row(CallbackButton(text="🔕 Без напоминания", payload="reminder_0"))
     builder.row(CallbackButton(text="🔔 5 минут", payload="reminder_5"))
     builder.row(CallbackButton(text="⏰ 15 минут", payload="reminder_15"))
     builder.row(CallbackButton(text="⏳ 30 минут", payload="reminder_30"))
     builder.row(CallbackButton(text="⏱️ 1 час", payload="reminder_60"))
-    builder.row(CallbackButton(text="✏️ Другое время", payload="reminder_custom"))
+    builder.row(CallbackButton(text="⏱️ 2 часа", payload="reminder_120"))
     return builder.as_markup()
 
 
@@ -99,21 +99,35 @@ def day_choice_markup():
 
 
 def timezone_choice_markup():
-    """Return markup with popular timezone options."""
+    """Return markup with Russian cities timezone options."""
     builder = InlineKeyboardBuilder()
+    # Города РФ от востока к западу (Владивосток → Калининград)
     timezones = [
-        ("🇷🇺 Moscow (UTC+3)", "Europe/Moscow"),
-        ("🇺🇦 Kyiv (UTC+2)", "Europe/Kyiv"),
-        ("🇹🇭 Bangkok (UTC+7)", "Asia/Bangkok"),
-        ("🇮🇳 India (UTC+5:30)", "Asia/Kolkata"),
-        ("🇸🇬 Singapore (UTC+8)", "Asia/Singapore"),
-        ("🇯🇵 Tokyo (UTC+9)", "Asia/Tokyo"),
-        ("🇺🇸 New York (UTC-5)", "America/New_York"),
-        ("🇬🇧 London (UTC+0)", "Europe/London"),
+        (" Владивосток (UTC+10)", "Asia/Vladivostok"),
+        (" Якутск (UTC+9)", "Asia/Yakutsk"),
+        ("❄️ Иркутск (UTC+8)", "Asia/Irkutsk"),
+        (" Красноярск (UTC+7)", "Asia/Krasnoyarsk"),
+        (" Новосибирск (UTC+7)", "Asia/Novosibirsk"),
+        ("⛰️ Омск (UTC+6)", "Asia/Omsk"),
+        ("⛰️ Екатеринбург (UTC+5)", "Asia/Yekaterinburg"),
+        ("🏛️ Самара (UTC+4)", "Europe/Samara"),
+        ("�️ Москва (UTC+3)", "Europe/Moscow"),
+        ("🏰 Калининград (UTC+2)", "Europe/Kaliningrad"),
     ]
     for text, tz in timezones:
         builder.row(CallbackButton(text=text, payload=f"tz_{tz}"))
     
     builder.row(CallbackButton(text="✏️ Другой часовой пояс", payload="tz_custom"))
     return builder.as_markup()
+
+
+def decompose_count_markup():
+    """Клавиатура выбора количества подзадач при декомпозиции."""
+    builder = InlineKeyboardBuilder()
+    builder.row(CallbackButton(text="3️⃣ Три подзадачи", payload="decomp_n_3"))
+    builder.row(CallbackButton(text="4️⃣ Четыре подзадачи", payload="decomp_n_4"))
+    builder.row(CallbackButton(text="5️⃣ Пять подзадач", payload="decomp_n_5"))
+    builder.row(CallbackButton(text="◀️ Отмена", payload="back_to_menu"))
+    return builder.as_markup()
+
 

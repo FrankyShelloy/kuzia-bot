@@ -60,7 +60,7 @@ async def get_response(chat_id: int, text: str) -> str:
     return "Извини, не могу ответить."
 
 
-async def decompose_with_ai(chat_id: int, task: str) -> List[str]:
+async def decompose_with_ai(chat_id: int, task: str, max_subtasks: int = 5) -> List[str]:
     prompt = (
         f"""Ты — опытный менеджер проектов, эксперт по декомпозиции (разбиению) задач. 
     Твоя цель — разбить сложную ЗАДАЧУ на серию максимально простых, понятных и логичных шагов для исполнителя.
@@ -70,6 +70,7 @@ async def decompose_with_ai(chat_id: int, task: str) -> List[str]:
     2.  **Действие:** Каждая подзадача — это конкретное действие (начинается с глагола: "Изучить...", "Создать...", "Отправить...").
     3.  **Атомарность:** Шаг должен быть достаточно мелким, чтобы его можно было выполнить за один подход, но не слишком мелким (не дроби "написать букву").
     4.  **Полнота:** Все шаги вместе должны гарантированно приводить к выполнению исходной ЗАДАЧИ.
+    5.  **Количество:** Создай ровно {max_subtasks} подзадач (не больше, не меньше).
 
     Требования к формату ответа:
     * Только список подзадач.
@@ -90,7 +91,7 @@ async def decompose_with_ai(chat_id: int, task: str) -> List[str]:
             cleaned_line = re.sub(r'^[\d\-•\*\.)\]]+\s*', '', line).strip()
             if cleaned_line:
                 cleaned.append(cleaned_line)
-        return cleaned[:5]
+        return cleaned[:max_subtasks]
     except Exception:
         logger.exception("decompose_with_ai error")
         return []
