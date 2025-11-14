@@ -33,6 +33,7 @@ from core.keyboards import (
 )
 from core.models import Task, Schedule, UserSettings
 from core.task_manager import clear_all_tasks, clear_completed_tasks, clear_expired_tasks, get_task_statistics, increment_completed_tasks_counter, get_total_completed_tasks
+from core.books import book_search_service
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
 from core.achievements import check_and_unlock_achievements, get_all_achievements
 from core.motivation import (
@@ -305,6 +306,101 @@ def register_handlers(dp, bot):
                 await event.message.answer(
                     f"� Задача: {task_text}\n\nВыберите количество подзадач:",
                     attachments=[decompose_count_markup()]
+                )
+                return
+
+            if action == 'book_search_input':
+                # Пользователь ввел запрос для поиска книг
+                user_request = text.strip()
+                if not user_request:
+                    await event.message.answer("Пожалуйста, опишите какую книгу вы хотите найти.", attachments=[back_to_menu_markup()])
+                    return
+                
+                # Очищаем состояние
+                if user_key:
+                    awaiting_actions.pop(user_key, None)
+                if chat_key:
+                    awaiting_actions.pop(chat_key, None)
+                
+                # Показываем что идет поиск
+                await event.message.answer("🔍 Ищу подходящие книги...")
+                
+                try:
+                    # Выполняем поиск книг
+                    books = await book_search_service.search_books(user_request, max_results=3)
+                    
+                    if books:
+                        response_parts = [
+                            f"📚 Нашел {len(books)} книг по запросу: \"{user_request}\"\n"
+                        ]
+                        
+                        for i, book in enumerate(books, 1):
+                            response_parts.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                            response_parts.append(f"📖 **{i}. {book.get('title', 'Без названия')}**")
+                            
+                            authors = book.get('authors', ['Автор не указан'])
+                            if len(authors) > 2:
+                                authors_text = f"{', '.join(authors[:2])} и др."
+                            else:
+                                authors_text = ', '.join(authors)
+                            response_parts.append(f"✍️ {authors_text}")
+                            
+                            if book.get('published_date') != 'Дата не указана':
+                                response_parts.append(f"📅 {book.get('published_date')}")
+                            
+                            if book.get('categories'):
+                                cats = ', '.join(book.get('categories', [])[:2])
+                                response_parts.append(f"🏷️ {cats}")
+                            
+                            description = book.get('description', 'Описание отсутствует')
+                            if len(description) > 200:
+                                description = description[:200] + "..."
+                            response_parts.append(f"📝 {description}")
+                            
+                            if book.get('preview_link'):
+                                response_parts.append(f"🔗 Подробнее: {book.get('preview_link')}")
+                                
+                            response_parts.append("")
+                        
+                        # Разбиваем сообщения если они слишком длинные
+                        full_response = "\n".join(response_parts)
+                        if len(full_response) > 4000:
+                            # Отправляем по одной книге
+                            await event.message.answer(response_parts[0])  # Заголовок
+                            
+                            current_book = []
+                            for part in response_parts[1:]:
+                                if part.startswith("━━━"):  # Начало новой книги
+                                    if current_book:
+                                        await event.message.answer("\n".join(current_book))
+                                        current_book = []
+                                current_book.append(part)
+                            
+                            if current_book:
+                                await event.message.answer("\n".join(current_book))
+                        else:
+                            await event.message.answer(full_response)
+                            
+                    else:
+                        await event.message.answer(
+                            f"😔 К сожалению, не удалось найти книги по запросу \"{user_request}\".\n\n"
+                            "Попробуйте:\n"
+                            "• Изменить формулировку\n" 
+                            "• Указать жанр или автора\n"
+                            "• Использовать более общие термины",
+                            attachments=[back_to_menu_markup()]
+                        )
+                        
+                except Exception as e:
+                    logging.exception(f"Error in book search: {e}")
+                    await event.message.answer(
+                        "❌ Произошла ошибка при поиске книг. Попробуйте позже.",
+                        attachments=[back_to_menu_markup()]
+                    )
+                
+                await event.message.answer(
+                    "Хотите найти еще книги? Нажмите 📚 Подбор книг в главном меню.",
+                    attachments=[back_to_menu_markup()]
                 )
                 return
 
@@ -1162,6 +1258,52 @@ def register_handlers(dp, bot):
             if chat_id is not None:
                 awaiting_actions[str(chat_id)] = state_obj
             await _respond("Отправьте задачу для разбиения на подзадачи или используйте /decompose <текст>", attachments=[back_to_menu_markup()])
+            return
+
+        if payload == 'cmd_book_search':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            user_id = derive_user_id(callback_event) or None
+            if user_id is None:
+                try:
+                    user_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    user_id = None
+            
+            # Очищаем ВСЕ старые состояния для этого чата перед установкой нового
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state_to_check = awaiting_actions.get(key, {})
+                if state_to_check.get('chat_id') == str(chat_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
+                logging.info("Cleared old book search state for key: %s", key)
+            
+            state_obj = {'action': 'book_search_input', 'chat_id': str(chat_id)}
+            if user_id is not None:
+                awaiting_actions[str(user_id)] = state_obj
+                logging.info("awaiting state set: user=%s chat=%s action=%s", str(user_id), str(chat_id), 'book_search_input')
+            if chat_id is not None:
+                awaiting_actions[str(chat_id)] = state_obj
+            
+            await _respond(
+                "📚 **Подбор книг с AI**\n\n"
+                "Опишите что вы хотите почитать в свободной форме. Например:\n\n"
+                "• \"Хочу что-то мотивирующее про бизнес\"\n"
+                "• \"Посоветуйте легкую фантастику на вечер\"\n"  
+                "• \"Ищу книгу про психологию отношений\"\n"
+                "• \"Что-то про саморазвитие, но не занудное\"\n\n"
+                "Я проанализирую ваш запрос и найду подходящие книги! 🤖",
+                attachments=[back_to_menu_markup()]
+            )
             return
 
         # Обработка выбора количества подзадач через кнопки

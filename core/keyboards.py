@@ -8,6 +8,7 @@ def main_keyboard_markup():
     builder.row(CallbackButton(text="📋 Список задач", payload="cmd_list"))
     builder.row(CallbackButton(text="✅ Отметить выполненной", payload="cmd_done"))
     builder.row(CallbackButton(text="🤖 Разбить задачу с AI", payload="cmd_decompose"))
+    builder.row(CallbackButton(text="📚 Подбор книг", payload="cmd_book_search"))
     builder.row(CallbackButton(text="🏆 Достижения", payload="cmd_achievements"))
     builder.row(CallbackButton(text="💬 Стиль мотивации", payload="cmd_motivation"))
     builder.row(CallbackButton(text="➕ В расписание", payload="cmd_schedule_add"))
