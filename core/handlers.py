@@ -30,10 +30,12 @@ from core.keyboards import (
     day_choice_markup,
     timezone_choice_markup,
     motivation_style_markup,
+    quarterly_report_menu_markup,
 )
 from core.models import Task, Schedule, UserSettings
 from core.task_manager import clear_all_tasks, clear_completed_tasks, clear_expired_tasks, get_task_statistics, increment_completed_tasks_counter, get_total_completed_tasks
 from core.books import book_search_service
+from core.reports import quarterly_report_service
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
 from core.achievements import check_and_unlock_achievements, get_all_achievements
 from core.motivation import (
@@ -1304,6 +1306,69 @@ def register_handlers(dp, bot):
                 "Я проанализирую ваш запрос и найду подходящие книги! 🤖",
                 attachments=[back_to_menu_markup()]
             )
+            return
+
+        # Обработчик квартальных отчётов
+        if payload == 'cmd_quarterly_report':
+            await _respond(
+                "📊 **Квартальный отчёт о прогрессе**\n\n"
+                "Выберите период для формирования отчёта:",
+                attachments=[quarterly_report_menu_markup()]
+            )
+            return
+        
+        # Отладочная команда для проверки задач
+        if payload == 'cmd_debug_tasks':
+            user_id = derive_user_id(callback_event) or str(callback_event.message.sender.user_id)
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.recipient.chat_id)
+            
+            try:
+                debug_info = await quarterly_report_service.debug_user_tasks(user_id, chat_id)
+                
+                debug_text = f"🔍 **Отладочная информация по задачам**\n\n"
+                debug_text += f"👤 User ID: {user_id}\n"
+                debug_text += f"💬 Chat ID: {chat_id}\n\n"
+                debug_text += f"📊 Всего задач: {debug_info['total_tasks']}\n\n"
+                debug_text += "📈 По статусам:\n"
+                for status, count in debug_info['by_status'].items():
+                    debug_text += f"• {status}: {count}\n"
+                
+                if debug_info['tasks_info']:
+                    debug_text += "\n🗂️ Последние задачи:\n"
+                    for task_id, text, status, created in debug_info['tasks_info']:
+                        debug_text += f"• #{task_id} [{status}] {created}\n  📝 {text}\n"
+                
+                await _respond(debug_text, attachments=[back_to_menu_markup()])
+                
+            except Exception as e:
+                logging.error(f"Error in debug_tasks: {e}")
+                await _respond(f"❌ Ошибка отладки: {e}", attachments=[back_to_menu_markup()])
+            return
+        
+        # Обработка выбора квартала
+        if payload and payload.startswith('quarterly_'):
+            user_id = derive_user_id(callback_event) or str(callback_event.message.sender.user_id)
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.recipient.chat_id)
+            
+            try:
+                if payload == 'quarterly_current':
+                    # Текущий квартал
+                    report = await quarterly_report_service.generate_quarterly_report(user_id, chat_id)
+                else:
+                    # Конкретный квартал текущего года
+                    quarter = int(payload.split('_')[1])
+                    from datetime import datetime
+                    current_year = datetime.now().year
+                    report = await quarterly_report_service.generate_quarterly_report(user_id, chat_id, current_year, quarter)
+                
+                await _respond(report, attachments=[back_to_menu_markup()])
+                
+            except Exception as e:
+                logging.error(f"Error generating quarterly report: {e}")
+                await _respond(
+                    "❌ Произошла ошибка при создании отчёта. Попробуйте позже.",
+                    attachments=[back_to_menu_markup()]
+                )
             return
 
         # Обработка выбора количества подзадач через кнопки
