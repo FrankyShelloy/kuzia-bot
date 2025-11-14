@@ -30,6 +30,32 @@ def action_menu_markup():
     return builder.as_markup()
 
 
+def task_list_menu_markup():
+    """Клавиатура для действий со списком задач."""
+    builder = InlineKeyboardBuilder()
+    builder.row(CallbackButton(text="🗑️ Очистить задачи", payload="cmd_clear_tasks"))
+    builder.row(CallbackButton(text="◀️ Обратно в меню", payload="back_to_menu"))
+    return builder.as_markup()
+
+
+def clear_tasks_menu_markup():
+    """Клавиатура для выбора типа очистки задач."""
+    builder = InlineKeyboardBuilder()
+    builder.row(CallbackButton(text="🗑️ Удалить ВСЕ задачи", payload="clear_all_tasks"))
+    builder.row(CallbackButton(text="✅ Удалить выполненные", payload="clear_done_tasks"))
+    builder.row(CallbackButton(text="⏰ Удалить просроченные", payload="clear_expired_tasks"))
+    builder.row(CallbackButton(text="◀️ Отмена", payload="back_to_menu"))
+    return builder.as_markup()
+
+
+def confirm_clear_tasks_markup(clear_type: str):
+    """Клавиатура подтверждения удаления задач."""
+    builder = InlineKeyboardBuilder()
+    builder.row(CallbackButton(text="✅ Да, удалить", payload=f"confirm_clear_{clear_type}"))
+    builder.row(CallbackButton(text="❌ Отмена", payload="back_to_menu"))
+    return builder.as_markup()
+
+
 def action_schedule_menu_markup():
     builder = InlineKeyboardBuilder()
     builder.row(CallbackButton(text="➕ Добавить ещё в расписание", payload="cmd_schedule_add"))

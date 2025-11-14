@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 import pytz
 from tortoise.functions import Coalesce
 from core.models import Schedule
+from core.task_manager import mark_expired_tasks
 from maxapi import Bot
 
 logger = logging.getLogger(__name__)
@@ -15,10 +16,26 @@ WEEKDAY_MAP = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6}  # Понедельни
 sent_main_reminders = set()  # {schedule_id}
 sent_preliminary_reminders = set()  # {schedule_id}
 
+# Отслеживание ежедневных задач
+last_daily_check = None
+
 async def send_reminders(bot: Bot):
+    global last_daily_check
+    
     now_utc = datetime.now(pytz.UTC)
+    current_date = now_utc.date()
     
     logger.info(f"Scheduler check: UTC time={now_utc.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Проверяем нужно ли запустить ежедневные задачи
+    # Временно для тестирования: запускаем каждый раз
+    try:
+        logger.info("Running daily tasks (test mode)...")
+        expired_count = await mark_expired_tasks()
+        logger.info(f"Daily tasks completed. Expired tasks: {expired_count}")
+        last_daily_check = current_date
+    except Exception as e:
+        logger.error(f"Error in daily tasks: {e}", exc_info=True)
 
     # Ищем ВСЕ включённые расписания (не фильтруем по дню)
     all_schedules = await Schedule.filter(enabled=True).all()

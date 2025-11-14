@@ -7,8 +7,10 @@ class Task(Model):
     chat_id = fields.CharField(max_length=64, index=True)
     user_id = fields.CharField(max_length=64, index=True)
     text = fields.TextField()
-    status = fields.CharField(max_length=16, default="new", index=True)
+    status = fields.CharField(max_length=16, default="pending", index=True)  # pending, done, expired
     parent_id = fields.IntField(null=True, default=None)
+    ai_generated = fields.BooleanField(default=False)  # Добавлено для совместимости
+    expired_at = fields.DatetimeField(null=True, default=None)  # Когда задача стала просроченной
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -38,6 +40,7 @@ class UserSettings(Model):
     user_id = fields.CharField(max_length=64, index=True, unique=True)
     chat_id = fields.CharField(max_length=64, index=True)
     timezone = fields.CharField(max_length=64, default="UTC")
+    total_completed_tasks = fields.IntField(default=0)  # Общий счетчик выполненных задач (не сбрасывается)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

@@ -21,6 +21,9 @@ from core.keyboards import (
     main_keyboard_markup,
     back_to_menu_markup,
     action_menu_markup,
+    task_list_menu_markup,
+    clear_tasks_menu_markup,
+    confirm_clear_tasks_markup,
     action_schedule_menu_markup,
     action_schedule_remove_menu_markup,
     reminder_choice_markup,
@@ -29,6 +32,7 @@ from core.keyboards import (
     motivation_style_markup,
 )
 from core.models import Task, Schedule, UserSettings
+from core.task_manager import clear_all_tasks, clear_completed_tasks, clear_expired_tasks, get_task_statistics, increment_completed_tasks_counter, get_total_completed_tasks
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
 from core.achievements import check_and_unlock_achievements, get_all_achievements
 from core.motivation import (
@@ -90,7 +94,7 @@ def register_handlers(dp, bot):
             return
         
         # Если timezone уже установлен, показываем главное меню
-        completed_count = await Task.filter(chat_id=chat_id, status="done").count()
+        completed_count = await get_total_completed_tasks(chat_id)
 
         start_message = (
             "👋 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
@@ -330,6 +334,9 @@ def register_handlers(dp, bot):
                     task.status = 'done'
                     await task.save(update_fields=["status", "updated_at"])
                     
+                    # Увеличиваем общий счетчик выполненных задач
+                    await increment_completed_tasks_counter(str(chat_id), 1)
+                    
                     # Если это подзадача — проверяем все ли её братья выполнены
                     if task.parent_id:
                         remaining = await Task.filter(parent_id=task.parent_id, chat_id=chat_id).exclude(status='done').count()
@@ -338,13 +345,20 @@ def register_handlers(dp, bot):
                             if parent_task and parent_task.status != 'done':
                                 parent_task.status = 'done'
                                 await parent_task.save(update_fields=["status", "updated_at"])
+                                # Увеличиваем счетчик и для родительской задачи
+                                await increment_completed_tasks_counter(str(chat_id), 1)
                     else:
                         # Если это родительская задача — закрываем все подзадачи
                         subtasks = await Task.filter(parent_id=task.id, chat_id=chat_id).all()
+                        subtask_count = 0
                         for subtask in subtasks:
                             if subtask.status != 'done':
                                 subtask.status = 'done'
                                 await subtask.save(update_fields=["status", "updated_at"])
+                                subtask_count += 1
+                        # Увеличиваем счетчик на количество закрытых подзадач
+                        if subtask_count > 0:
+                            await increment_completed_tasks_counter(str(chat_id), subtask_count)
                     
                     succeeded.append(token)
                 logging.info("Clearing awaiting keys: user_key=%s chat_key=%s", user_key, chat_key)
@@ -359,7 +373,7 @@ def register_handlers(dp, bot):
                     parts.append(f"⚠️ Необработаны/не найдены: {', '.join(map(str, failed))}")
                 
                 if chat_id:
-                    completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                    completed_count = await get_total_completed_tasks(str(chat_id))
                     parts.append(f"\n📊 Всего выполнено задач: {completed_count}")
                     
                     new_achievement = await check_and_unlock_achievements(str(chat_id))
@@ -699,11 +713,25 @@ def register_handlers(dp, bot):
         if not parent_tasks:
             await event.message.answer("Задач пока нет. Добавьте новую командой /add <текст>")
             return
-        lines = ["Список задач:"]
+        lines = [
+            "📋 Список задач:",
+            "",
+            "🔸 — активные (не выполнены)",
+            "⏰ — просроченные", 
+            "✅ — выполненные",
+            ""
+        ]
         letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н', 'о', 'п']
         
         for idx, parent in enumerate(parent_tasks, start=1):
-            status = "✅" if parent.status == "done" else "🔸"
+            # Определяем статус с учетом просроченных задач
+            if parent.status == "done":
+                status = "✅"
+            elif parent.status == "expired":
+                status = "⏰"  # Просроченная
+            else:
+                status = "🔸"  # Pending
+                
             ai_marker = '🤖 ' if getattr(parent, 'ai_generated', False) else ''
             lines.append(f"{idx}. {status} {ai_marker}{parent.text}")
             
@@ -711,10 +739,16 @@ def register_handlers(dp, bot):
             subtasks = await Task.filter(chat_id=chat_id, parent_id=parent.id).order_by("status", "created_at")
             for sub_idx, subtask in enumerate(subtasks):
                 letter = letter_map[sub_idx] if sub_idx < len(letter_map) else f"{sub_idx+1}"
-                sub_status = "✅" if subtask.status == "done" else "▫️"
+                # Статус подзадачи с учетом просроченных
+                if subtask.status == "done":
+                    sub_status = "✅"
+                elif subtask.status == "expired":
+                    sub_status = "⏰"
+                else:
+                    sub_status = "▫️"
                 lines.append(f"   {idx}{letter}. {sub_status} {subtask.text}")
         
-        await event.message.answer("\n".join(lines))
+        await event.message.answer("\n".join(lines), attachments=[task_list_menu_markup()])
 
     @dp.message_created(Command('done'))
     async def mark_task_done(event: MessageCreated):
@@ -749,6 +783,10 @@ def register_handlers(dp, bot):
             return
         task.status = "done"
         await task.save(update_fields=["status", "updated_at"])
+        
+        # Увеличиваем общий счетчик выполненных задач
+        await increment_completed_tasks_counter(_resolve_chat_id(event), 1)
+        
         await event.message.answer(f"Задача {task.id} отмечена как выполненная ✅")
 
     @dp.message_created(Command('schedule_add'))
@@ -1048,11 +1086,25 @@ def register_handlers(dp, bot):
             if not parent_tasks:
                 await _respond("Задач пока нет. Добавьте новую командой /add <текст>", attachments=[back_to_menu_markup()])
                 return
-            lines = ["Список задач:"]
+            lines = [
+                "📋 Список задач:",
+                "",
+                "🔸 — активные (не выполнены)",
+                "⏰ — просроченные", 
+                "✅ — выполненные",
+                ""
+            ]
             letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н', 'о', 'п']
             
             for idx, parent in enumerate(parent_tasks, start=1):
-                status = "✅" if parent.status == "done" else "🔸"
+                # Определяем статус с учетом просроченных задач
+                if parent.status == "done":
+                    status = "✅"
+                elif parent.status == "expired":
+                    status = "⏰"  # Просроченная
+                else:
+                    status = "🔸"  # Pending
+                    
                 ai_marker = '🤖 ' if getattr(parent, 'ai_generated', False) else ''
                 lines.append(f"{idx}. {status} {ai_marker}{parent.text}")
                 
@@ -1060,10 +1112,16 @@ def register_handlers(dp, bot):
                 subtasks = await Task.filter(chat_id=str(chat_id), parent_id=parent.id).order_by("status", "created_at")
                 for sub_idx, subtask in enumerate(subtasks):
                     letter = letter_map[sub_idx] if sub_idx < len(letter_map) else f"{sub_idx+1}"
-                    sub_status = "✅" if subtask.status == "done" else "▫️"
+                    # Статус подзадачи с учетом просроченных
+                    if subtask.status == "done":
+                        sub_status = "✅"
+                    elif subtask.status == "expired":
+                        sub_status = "⏰"
+                    else:
+                        sub_status = "▫️"
                     lines.append(f"   {idx}{letter}. {sub_status} {subtask.text}")
             
-            await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
+            await _respond("\n".join(lines), attachments=[task_list_menu_markup()])
             return
 
         if payload == 'cmd_add':
@@ -1207,7 +1265,7 @@ def register_handlers(dp, bot):
                 chat_id = str(callback_event.message.sender.user_id)
             
             achievements = await get_all_achievements(str(chat_id))
-            completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+            completed_count = await get_total_completed_tasks(str(chat_id))
             
             lines = [
                 "🏆 ВАШИ ДОСТИЖЕНИЯ 🏆\n",
@@ -1750,6 +1808,65 @@ def register_handlers(dp, bot):
                 )
             return
 
+        # Обработчики для очистки задач
+        if payload == 'cmd_clear_tasks':
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.sender.user_id)
+            
+            # Получаем статистику задач
+            stats = await get_task_statistics(str(chat_id))
+            
+            message = (
+                "🗑️ Очистка задач\n\n"
+                f"📊 Текущая статистика:\n"
+                f"🔸 Активных: {stats['pending']}\n"
+                f"✅ Выполненных: {stats['done']}\n"
+                f"⏰ Просроченных: {stats['expired']}\n"
+                f"📦 Всего: {stats['total']}\n\n"
+                "Выберите что удалить:"
+            )
+            await _respond(message, attachments=[clear_tasks_menu_markup()])
+            return
+
+        if payload in ['clear_all_tasks', 'clear_done_tasks', 'clear_expired_tasks']:
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.sender.user_id)
+            
+            # Определяем тип очистки и сообщение
+            if payload == 'clear_all_tasks':
+                message = "⚠️ Вы уверены что хотите удалить ВСЕ задачи? Это действие необратимо!"
+                clear_type = "all"
+            elif payload == 'clear_done_tasks':
+                message = "Удалить все выполненные задачи?"
+                clear_type = "done"
+            elif payload == 'clear_expired_tasks':
+                message = "Удалить все просроченные задачи?"
+                clear_type = "expired"
+            
+            await _respond(message, attachments=[confirm_clear_tasks_markup(clear_type)])
+            return
+
+        if payload and payload.startswith('confirm_clear_'):
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.sender.user_id)
+            clear_type = payload.replace('confirm_clear_', '')
+            
+            try:
+                if clear_type == 'all':
+                    deleted_count = await clear_all_tasks(str(chat_id))
+                    message = f"✅ Удалено {deleted_count} задач"
+                elif clear_type == 'done':
+                    deleted_count = await clear_completed_tasks(str(chat_id))
+                    message = f"✅ Удалено {deleted_count} выполненных задач"
+                elif clear_type == 'expired':
+                    deleted_count = await clear_expired_tasks(str(chat_id))
+                    message = f"✅ Удалено {deleted_count} просроченных задач"
+                else:
+                    message = "❌ Неизвестный тип очистки"
+                
+                await _respond(message, attachments=[back_to_menu_markup()])
+            except Exception as e:
+                logging.exception(f"Error clearing tasks: {e}")
+                await _respond("❌ Ошибка при удалении задач", attachments=[back_to_menu_markup()])
+            return
+
         if payload == 'back_to_menu':
             chat_id = derive_chat_id(callback_event) or None
             if chat_id is None:
@@ -1764,7 +1881,7 @@ def register_handlers(dp, bot):
                     chat_id = None
             
             if chat_id:
-                completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                completed_count = await get_total_completed_tasks(str(chat_id))
                 pretty_text = (
                     "🏠 Главное меню — Кузя\n"
                     f"✅ Выполнено задач: {completed_count}\n\n"
