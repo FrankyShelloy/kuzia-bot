@@ -91,9 +91,10 @@ def register_handlers(dp, bot):
         if not user_settings or not user_settings.timezone:
             # Просим выбрать timezone - это критично для работы бота
             await event.message.answer(
-                "🌍 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
+                "<b>🌍 Привет! Я Кузя</b> — твой персональный помощник по продуктивности и развитию.\n\n"
                 "Сначала выбери свой часовой пояс:",
-                attachments=[timezone_choice_markup()]
+                attachments=[timezone_choice_markup()],
+                parse_mode=ParseMode.HTML
             )
             return
         
@@ -101,11 +102,11 @@ def register_handlers(dp, bot):
         completed_count = await get_total_completed_tasks(chat_id)
 
         start_message = (
-            "👋 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
-            f"✅ Выполнено задач: {completed_count}\n\n"
+            "<b>👋 Привет! Я Кузя</b> — твой персональный помощник по продуктивности и развитию.\n\n"
+            f"✅ <b>Выполнено задач:</b> <u>{completed_count}</u>\n\n"
             "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями."
         )
-        await event.message.answer(text=start_message, attachments=[main_keyboard_markup()])
+        await event.message.answer(text=start_message, attachments=[main_keyboard_markup()], parse_mode=ParseMode.HTML)
 
     @dp.message_created(Command('add'))
     async def add_task_command(event: MessageCreated):
@@ -133,8 +134,9 @@ def register_handlers(dp, bot):
             text=task_text
         )
         await event.message.answer(
-            "✅ Задача добавлена. Если хотите добавить ещё — просто пришлите текст задачи.",
-            attachments=[back_to_menu_markup()]
+            "<b>✅ Задача добавлена.</b> Если хотите добавить ещё — просто пришлите текст задачи.",
+            attachments=[back_to_menu_markup()],
+            parse_mode=ParseMode.HTML
         )
 
     @dp.message_created(Command('decompose'))
@@ -161,7 +163,7 @@ def register_handlers(dp, bot):
         subtasks = await decompose_with_ai(int(chat_id), task_text)
         
         if not subtasks:
-            await event.message.answer("❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
+            await event.message.answer("<b>❌ Не удалось разбить задачу.</b> Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
             return
         
         main_task = await Task.create(
@@ -180,13 +182,13 @@ def register_handlers(dp, bot):
                 parent_id=main_task.id
             )
         
-        result = f"✅ Задача разбита на {len(subtasks)} подзадач:\n\n"
-        result += f"📋 Главная задача: {task_text}\n\n"
-        result += "Подзадачи:\n"
+        result = f"<b>✅ Задача разбита на {len(subtasks)} подзадач:</b>\n\n"
+        result += f"📋 <b>Главная задача:</b> <i>{task_text}</i>\n\n"
+        result += "<b>Подзадачи:</b>\n"
         for i, subtask in enumerate(subtasks, 1):
             result += f"{i}. {subtask}\n"
         
-        await event.message.answer(result, attachments=[back_to_menu_markup()])
+        await event.message.answer(result, attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
 
     @dp.message_created(F.message.body.text & ~F.message.body.text.startswith('/'))
     async def add_task_plain_text(event: MessageCreated):
@@ -634,7 +636,6 @@ def register_handlers(dp, bot):
                 from core.handlers import DAY_NAMES_RU
                 day_name = DAY_NAMES_RU[day_of_week]
                 info_msg = f"✅ Расписание добавлено:\n{day_name} в {time_str} - {task_text}\n\n"
-                info_msg += "⏰ Основное напоминание: за 1 минуту до события\n"
                 info_msg += "Выберите дополнительное напоминание:"
                 
                 # Сохраняем ID расписания для выбора напоминания
@@ -713,8 +714,7 @@ def register_handlers(dp, bot):
                 # Теперь спрашиваем напоминание через кнопки
                 from core.handlers import DAY_NAMES_RU
                 day_name = DAY_NAMES_RU[day_of_week]
-                info_msg = f"✅ Расписание добавлено: {day_name} в {time_str} - {task_text}\n"
-                info_msg += f"⏰ Основное напоминание: за 1 минуту до события\n\n"
+                info_msg = f"✅ Расписание добавлено: {day_name} в {time_str} - {task_text}\n\n"
                 info_msg += "Выберите когда еще напоминать:"
                 
                 # Сохраняем ID расписания в состоянии для обработки выбора напоминания
@@ -780,11 +780,11 @@ def register_handlers(dp, bot):
             await event.message.answer("Задач пока нет. Добавьте новую командой /add <текст>")
             return
         lines = [
-            "📋 Список задач:",
+            "<b>📋 Список задач:</b>",
             "",
-            "🔸 — активные (не выполнены)",
-            "⏰ — просроченные", 
-            "✅ — выполненные",
+            "🔸 — <i>активные (не выполнены)</i>",
+            "⏰ — <i>просроченные</i>", 
+            "✅ — <i>выполненные</i>",
             ""
         ]
         letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н', 'о', 'п']
@@ -814,7 +814,7 @@ def register_handlers(dp, bot):
                     sub_status = "▫️"
                 lines.append(f"   {idx}{letter}. {sub_status} {subtask.text}")
         
-        await event.message.answer("\n".join(lines), attachments=[task_list_menu_markup()])
+        await event.message.answer("\n".join(lines), attachments=[task_list_menu_markup()], parse_mode=ParseMode.HTML)
 
     @dp.message_created(Command('done'))
     async def mark_task_done(event: MessageCreated):
@@ -845,7 +845,7 @@ def register_handlers(dp, bot):
                 await event.message.answer("Задача не найдена.")
                 return
         if task.status == "done":
-            await event.message.answer("Эта задача уже выполнена ✅")
+            await event.message.answer("<i>Эта задача уже выполнена</i> ✅", parse_mode=ParseMode.HTML)
             return
         task.status = "done"
         await task.save(update_fields=["status", "updated_at"])
@@ -853,7 +853,7 @@ def register_handlers(dp, bot):
         # Увеличиваем общий счетчик выполненных задач
         await increment_completed_tasks_counter(_resolve_chat_id(event), 1)
         
-        await event.message.answer(f"Задача {task.id} отмечена как выполненная ✅")
+        await event.message.answer(f"<b>Задача {task.id} отмечена как выполненная</b> ✅", parse_mode=ParseMode.HTML)
 
     @dp.message_created(Command('schedule_add'))
     async def add_schedule(event: MessageCreated):
@@ -1153,11 +1153,11 @@ def register_handlers(dp, bot):
                 await _respond("Задач пока нет. Добавьте новую командой /add <текст>", attachments=[back_to_menu_markup()])
                 return
             lines = [
-                "📋 Список задач:",
+                "<b>📋 Список задач:</b>",
                 "",
-                "🔸 — активные (не выполнены)",
-                "⏰ — просроченные", 
-                "✅ — выполненные",
+                "🔸 — <i>активные (не выполнены)</i>",
+                "⏰ — <i>просроченные</i>", 
+                "✅ — <i>выполненные</i>",
                 ""
             ]
             letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н', 'о', 'п']
@@ -1187,7 +1187,7 @@ def register_handlers(dp, bot):
                         sub_status = "▫️"
                     lines.append(f"   {idx}{letter}. {sub_status} {subtask.text}")
             
-            await _respond("\n".join(lines), attachments=[task_list_menu_markup()])
+            await _respond("\n".join(lines), attachments=[task_list_menu_markup()], parse_mode=ParseMode.HTML)
             return
 
         if payload == 'cmd_add':
@@ -1280,9 +1280,10 @@ def register_handlers(dp, bot):
         # Обработчик квартальных отчётов
         if payload == 'cmd_quarterly_report':
             await _respond(
-                "📊 **Квартальный отчёт о прогрессе**\n\n"
+                "<b>📊 Квартальный отчёт о прогрессе</b>\n\n"
                 "Выберите период для формирования отчёта:",
-                attachments=[quarterly_report_menu_markup()]
+                attachments=[quarterly_report_menu_markup()],
+                parse_mode=ParseMode.HTML
             )
             return
         
@@ -1294,20 +1295,20 @@ def register_handlers(dp, bot):
             try:
                 debug_info = await quarterly_report_service.debug_user_tasks(user_id, chat_id)
                 
-                debug_text = f"🔍 **Отладочная информация по задачам**\n\n"
-                debug_text += f"👤 User ID: {user_id}\n"
-                debug_text += f"💬 Chat ID: {chat_id}\n\n"
-                debug_text += f"📊 Всего задач: {debug_info['total_tasks']}\n\n"
+                debug_text = f"<b>🔍 Отладочная информация по задачам</b>\n\n"
+                debug_text += f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+                debug_text += f"💬 <b>Chat ID:</b> <code>{chat_id}</code>\n\n"
+                debug_text += f"📊 <b>Всего задач:</b> {debug_info['total_tasks']}\n\n"
                 debug_text += "📈 По статусам:\n"
                 for status, count in debug_info['by_status'].items():
-                    debug_text += f"• {status}: {count}\n"
+                    debug_text += f"• <i>{status}:</i> {count}\n"
                 
                 if debug_info['tasks_info']:
                     debug_text += "\n🗂️ Последние задачи:\n"
                     for task_id, text, status, created in debug_info['tasks_info']:
-                        debug_text += f"• #{task_id} [{status}] {created}\n  📝 {text}\n"
+                        debug_text += f"• <b>#{task_id}</b> [<i>{status}</i>] {created}\n  📝 {text}\n"
                 
-                await _respond(debug_text, attachments=[back_to_menu_markup()])
+                await _respond(debug_text, attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
                 
             except Exception as e:
                 logging.error(f"Error in debug_tasks: {e}")
@@ -1330,13 +1331,14 @@ def register_handlers(dp, bot):
                     current_year = datetime.now().year
                     report = await quarterly_report_service.generate_quarterly_report(user_id, chat_id, current_year, quarter)
                 
-                await _respond(report, attachments=[back_to_menu_markup()])
+                await _respond(report, attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
                 
             except Exception as e:
                 logging.error(f"Error generating quarterly report: {e}")
                 await _respond(
-                    "❌ Произошла ошибка при создании отчёта. Попробуйте позже.",
-                    attachments=[back_to_menu_markup()]
+                    "<b>❌ Произошла ошибка при создании отчёта.</b> Попробуйте позже.",
+                    attachments=[back_to_menu_markup()],
+                    parse_mode=ParseMode.HTML
                 )
             return
 
@@ -1444,27 +1446,27 @@ def register_handlers(dp, bot):
             completed_count = await get_total_completed_tasks(str(chat_id))
             
             lines = [
-                "🏆 ВАШИ ДОСТИЖЕНИЯ 🏆\n",
-                f"📊 Выполнено задач: {completed_count}\n"
+                "<b>🏆 ВАШИ ДОСТИЖЕНИЯ 🏆</b>\n",
+                f"📊 <b>Выполнено задач:</b> <u>{completed_count}</u>\n"
             ]
             
             unlocked = [a for a in achievements if a["unlocked"]]
             locked = [a for a in achievements if not a["unlocked"]]
             
             if unlocked:
-                lines.append("✨ Разблокированные:\n")
+                lines.append("<b>✨ Разблокированные:</b>\n")
                 for ach in unlocked:
-                    lines.append(f"{ach['emoji']} {ach['title']} — {ach['milestone']} задач")
+                    lines.append(f"{ach['emoji']} <b>{ach['title']}</b> — <i>{ach['milestone']} задач</i>")
             
             if locked:
-                lines.append("\n🔒 Ещё не открыты:\n")
+                lines.append("\n<b>🔒 Ещё не открыты:</b>\n")
                 for ach in locked:
-                    lines.append(f"{ach['emoji']} {ach['title']}")
+                    lines.append(f"{ach['emoji']} <i>{ach['title']}</i>")
             
             if not unlocked and not locked:
-                lines.append("Пока нет достижений. Выполняйте задачи, чтобы разблокировать их!")
+                lines.append("<i>Пока нет достижений. Выполняйте задачи, чтобы разблокировать их!</i>")
             
-            await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
+            await _respond("\n".join(lines), attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
             return
 
         if payload == 'cmd_motivation':
@@ -1485,16 +1487,16 @@ def register_handlers(dp, bot):
                 "aggressive": "💪 Агрессивный"
             }
             
-            status = "включены ✅" if settings.enabled else "выключены 🔕"
+            status = "<b>включены</b> ✅" if settings.enabled else "<b>выключены</b> 🔕"
             message = (
-                "💬 СТИЛЬ МОТИВАЦИИ\n\n"
-                f"Текущий стиль: {style_names.get(settings.style, settings.style)}\n"
-                f"Напоминания: {status}\n\n"
+                "<b>💬 СТИЛЬ МОТИВАЦИИ</b>\n\n"
+                f"<b>Текущий стиль:</b> <i>{style_names.get(settings.style, settings.style)}</i>\n"
+                f"<b>Напоминания:</b> {status}\n\n"
                 "Я буду напоминать вам о невыполненных задачах 2-3 раза в день.\n"
-                "Выберите стиль напоминаний:"
+                "<u>Выберите стиль напоминаний:</u>"
             )
             
-            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)], parse_mode=ParseMode.HTML)
             return
 
         if payload and payload.startswith('set_style_'):
