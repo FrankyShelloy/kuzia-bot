@@ -5,6 +5,7 @@ import logging
 import json
 import re
 import aiohttp
+import random
 from typing import List, Dict, Optional
 
 
@@ -102,6 +103,44 @@ class BookSearchService:
             "language": "ru"
         }
     
+    def _add_search_variety(self, keywords: Dict[str, str]) -> Dict[str, str]:
+        """
+        Добавляет вариативность в поисковые запросы для получения разных результатов.
+        
+        Args:
+            keywords: Исходные ключевые слова
+            
+        Returns:
+            Модифицированные ключевые слова с добавленной вариативностью
+        """
+        # Синонимы для добавления разнообразия
+        variety_words = {
+            "фантастика": ["sci-fi", "fantasy", "научная фантастика", "космос", "будущее"],
+            "бизнес": ["предпринимательство", "стартап", "менеджмент", "лидерство", "успех"],
+            "психология": ["саморазвитие", "личность", "отношения", "мышление", "эмоции"],
+            "мотивация": ["вдохновение", "цели", "достижения", "мотивирующий", "успех"],
+            "легкая": ["простая", "развлекательная", "увлекательная", "интересная", "захватывающая"],
+            "серьезная": ["глубокая", "философская", "сложная", "академическая", "научная"]
+        }
+        
+        modified_keywords = keywords.copy()
+        base_keywords = keywords.get("keywords", "").lower()
+        
+        # Добавляем случайные синонимы
+        for base_word, synonyms in variety_words.items():
+            if base_word in base_keywords:
+                # Добавляем 1-2 случайных синонима
+                random_synonyms = random.sample(synonyms, min(2, len(synonyms)))
+                modified_keywords["keywords"] += " " + " ".join(random_synonyms)
+        
+        # Добавляем случайные модификаторы для разнообразия
+        mood_modifiers = ["новая", "популярная", "известная", "интересная", "рекомендуемая"]
+        if random.choice([True, False]):  # 50% шанс добавить модификатор
+            modifier = random.choice(mood_modifiers)
+            modified_keywords["keywords"] = f"{modifier} " + modified_keywords["keywords"]
+        
+        return modified_keywords
+    
     async def search_books_google(self, keywords: Dict[str, str], max_results: int = 5) -> List[Dict]:
         """
         Поиск книг через Google Books API.
@@ -129,11 +168,15 @@ class BookSearchService:
             if keywords.get("language", "ru") == "ru":
                 query += " язык:ru"
             
+            # Варьируем параметры поиска для получения разных результатов
+            order_options = ["relevance", "newest"]
+            selected_order = random.choice(order_options)
+            
             params = {
                 "q": query,
-                "maxResults": max_results,
+                "maxResults": max_results + 2,  # Запрашиваем больше для последующей рандомизации
                 "printType": "books",
-                "orderBy": "relevance"
+                "orderBy": selected_order
             }
             
             async with aiohttp.ClientSession() as session:
@@ -157,8 +200,12 @@ class BookSearchService:
                             }
                             books.append(book)
                             
-                        logging.info(f"Found {len(books)} books via Google Books API")
-                        return books
+                        # Перемешиваем результаты и возвращаем нужное количество
+                        random.shuffle(books)
+                        final_books = books[:max_results]
+                        
+                        logging.info(f"Found {len(final_books)} books via Google Books API (randomized from {len(books)})")
+                        return final_books
                     else:
                         logging.error(f"Google Books API error: {response.status}")
                         return []
@@ -186,8 +233,9 @@ class BookSearchService:
                 
             params = {
                 "q": query,
-                "language": "rus" if keywords.get("language", "ru") == "ru" else "eng",
-                "limit": max_results
+                # Убираем языковой фильтр, так как он блокирует результаты
+                # "language": "rus" if keywords.get("language", "ru") == "ru" else "eng",
+                "limit": max_results + 3  # Запрашиваем больше для рандомизации
             }
             
             async with aiohttp.ClientSession() as session:
@@ -210,8 +258,12 @@ class BookSearchService:
                             }
                             books.append(book)
                             
-                        logging.info(f"Found {len(books)} books via OpenLibrary API")
-                        return books
+                        # Перемешиваем результаты и возвращаем нужное количество
+                        random.shuffle(books)
+                        final_books = books[:max_results]
+                        
+                        logging.info(f"Found {len(final_books)} books via OpenLibrary API (randomized from {len(books)})")
+                        return final_books
                     else:
                         logging.error(f"OpenLibrary API error: {response.status}")
                         return []
@@ -234,9 +286,15 @@ class BookSearchService:
         """
         try:
             # Извлекаем ключевые слова с помощью AI
-            keywords = await self.extract_search_keywords(user_request)
+            base_keywords = await self.extract_search_keywords(user_request)
             
-            # Пробуем Google Books API
+            # Добавляем вариативность для получения разных результатов
+            keywords = self._add_search_variety(base_keywords)
+            
+            logging.info(f"Original keywords: {base_keywords.get('keywords')}")
+            logging.info(f"Modified keywords: {keywords.get('keywords')}")
+            
+            # Пробуем Google Books API (приоритетный)
             books = await self.search_books_google(keywords, max_results)
             
             # Если Google Books не вернул результатов, пробуем OpenLibrary
@@ -274,8 +332,8 @@ class BookSearchService:
             # Убираем лишние пробелы и переносы строк
             description = ' '.join(description.split())
             # Ограничиваем длину
-            if len(description) > 200:
-                description = description[:200] + "..."
+            if len(description) > 150:
+                description = description[:150] + "..."
         
         published = book.get("published_date", "")
         pages = book.get("page_count", "")
@@ -289,29 +347,32 @@ class BookSearchService:
         # Убираем нумерацию в начале названия (например "1. " или "**1. ")
         clean_title = re.sub(r'^\*{0,2}\d+\.\s*', '', clean_title)
         
-        result = f"📚 {clean_title}\n"
-        result += f"✍️ {authors}\n"
-        result += f"📅 {published}" if published else "📅 Дата не указана"
+        # Используем HTML-форматирование для MAX API
+        result = f"📚 <b>{clean_title}</b>\n"
+        result += f"✍️ <i>{authors}</i>\n"
         
-        if pages and str(pages) != "":
-            result += f" • 📄 {pages} стр."
+        # Формируем строку с датой и дополнительной информацией
+        info_parts = []
+        if published and published not in ["Дата не указана", ""]:
+            info_parts.append(f"📅 {published}")
+            
+        if pages and str(pages) not in ["", "Не указано"]:
+            info_parts.append(f"📄 {pages} стр.")
         
-        if rating and str(rating) != "":
-            result += f" • ⭐ {rating}"
-        result += "\n"
+        if rating and str(rating) not in ["", "Нет рейтинга"]:
+            info_parts.append(f"⭐ {rating}")
+        
+        if info_parts:
+            result += " • ".join(info_parts) + "\n"
         
         if categories:
-            result += f"🏷️ {categories}\n"
+            result += f"🏷️ <u>{categories}</u>\n"
             
         result += f"📖 {description}\n"
         
-        # Для maxapi используем простой текст без длинных ссылок
+        # Добавляем ссылку как HTML гиперссылку, убираем отображение источника
         if book.get("preview_link"):
-            result += "🔗 Доступно для просмотра\n"
-            
-        # Показываем только источник без лишней информации
-        if source:
-            result += f"📡 {source}"
+            result += f"🔗 <a href=\"{book['preview_link']}\">Читать</a>"
         
         return result
 

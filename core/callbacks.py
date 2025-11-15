@@ -127,19 +127,27 @@ async def deep_search(obj: Any, max_depth: int = 4, path: str = "root") -> Tuple
     return None, None
 
 
-async def respond(callback_event: Any, text: str, attachments=None):
+async def respond(callback_event: Any, text: str, attachments=None, parse_mode=None):
     """Try to edit the original message with keyboard; fall back to sending a new message."""
     msg = getattr(callback_event, 'message', None)
     if msg is not None:
         edit = getattr(msg, 'edit', None)
         if callable(edit):
             try:
-                await edit(text=text, attachments=attachments)
+                # Передаем parse_mode если он задан
+                if parse_mode:
+                    await edit(text=text, attachments=attachments, parse_mode=parse_mode)
+                else:
+                    await edit(text=text, attachments=attachments)
                 return
             except Exception:
                 pass
     try:
-        await callback_event.message.answer(text, attachments=attachments)
+        # Передаем parse_mode если он задан
+        if parse_mode:
+            await callback_event.message.answer(text, attachments=attachments, parse_mode=parse_mode)
+        else:
+            await callback_event.message.answer(text, attachments=attachments)
     except Exception:
         try:
             await callback_event.bot.edit_message(getattr(callback_event.message, 'id', None), text=text)

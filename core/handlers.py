@@ -46,6 +46,7 @@ from core.motivation import (
 )
 from maxapi.types import BotStarted, Command, MessageCreated
 from maxapi.filters import F
+from maxapi.enums.parse_mode import ParseMode
 
 
 # Константы для дней недели
@@ -332,65 +333,36 @@ def register_handlers(dp, bot):
                     books = await book_search_service.search_books(user_request, max_results=3)
                     
                     if books:
-                        response_parts = [
-                            f"📚 Нашел {len(books)} книг по запросу: \"{user_request}\"\n"
-                        ]
+                        # Отправляем заголовок с HTML форматированием
+                        await event.message.answer(
+                            f"<b>📚 Нашел {len(books)} книг по запросу:</b> <i>\"{user_request}\"</i>",
+                            parse_mode=ParseMode.HTML
+                        )
                         
+                        # Отправляем каждую книгу отдельным сообщением
                         for i, book in enumerate(books, 1):
-                            response_parts.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                            response_parts.append(f"📖 **{i}. {book.get('title', 'Без названия')}**")
+                            book_text = book_search_service.format_book_result(book)
+                            # Добавляем номер книги в начало с HTML форматированием
+                            formatted_text = f"<b>{i}.</b>\n{book_text}"
                             
-                            authors = book.get('authors', ['Автор не указан'])
-                            if len(authors) > 2:
-                                authors_text = f"{', '.join(authors[:2])} и др."
-                            else:
-                                authors_text = ', '.join(authors)
-                            response_parts.append(f"✍️ {authors_text}")
-                            
-                            if book.get('published_date') != 'Дата не указана':
-                                response_parts.append(f"📅 {book.get('published_date')}")
-                            
-                            if book.get('categories'):
-                                cats = ', '.join(book.get('categories', [])[:2])
-                                response_parts.append(f"🏷️ {cats}")
-                            
-                            description = book.get('description', 'Описание отсутствует')
-                            if len(description) > 200:
-                                description = description[:200] + "..."
-                            response_parts.append(f"📝 {description}")
-                            
-                            if book.get('preview_link'):
-                                response_parts.append(f"🔗 Подробнее: {book.get('preview_link')}")
-                                
-                            response_parts.append("")
+                            await event.message.answer(formatted_text, parse_mode=ParseMode.HTML)
                         
-                        # Разбиваем сообщения если они слишком длинные
-                        full_response = "\n".join(response_parts)
-                        if len(full_response) > 4000:
-                            # Отправляем по одной книге
-                            await event.message.answer(response_parts[0])  # Заголовок
-                            
-                            current_book = []
-                            for part in response_parts[1:]:
-                                if part.startswith("━━━"):  # Начало новой книги
-                                    if current_book:
-                                        await event.message.answer("\n".join(current_book))
-                                        current_book = []
-                                current_book.append(part)
-                            
-                            if current_book:
-                                await event.message.answer("\n".join(current_book))
-                        else:
-                            await event.message.answer(full_response)
+                        # Отправляем завершающее сообщение
+                        await event.message.answer(
+                            "✨ Хотите найти еще книги? Нажмите 📚 <b>Подбор книг</b> в главном меню.",
+                            attachments=[back_to_menu_markup()],
+                            parse_mode=ParseMode.HTML
+                        )
                             
                     else:
                         await event.message.answer(
-                            f"😔 К сожалению, не удалось найти книги по запросу \"{user_request}\".\n\n"
-                            "Попробуйте:\n"
+                            f"😔 К сожалению, не удалось найти книги по запросу <i>\"{user_request}\"</i>.\n\n"
+                            "<b>Попробуйте:</b>\n"
                             "• Изменить формулировку\n" 
                             "• Указать жанр или автора\n"
                             "• Использовать более общие термины",
-                            attachments=[back_to_menu_markup()]
+                            attachments=[back_to_menu_markup()],
+                            parse_mode=ParseMode.HTML
                         )
                         
                 except Exception as e:
@@ -400,10 +372,6 @@ def register_handlers(dp, bot):
                         attachments=[back_to_menu_markup()]
                     )
                 
-                await event.message.answer(
-                    "Хотите найти еще книги? Нажмите 📚 Подбор книг в главном меню.",
-                    attachments=[back_to_menu_markup()]
-                )
                 return
 
             if action == 'done_selection':
@@ -1168,8 +1136,8 @@ def register_handlers(dp, bot):
         except Exception:
             logging.exception("Ошибка логирования отладки callback_event")
 
-        async def _respond(text: str, attachments=None):
-            return await respond(callback_event, text, attachments)
+        async def _respond(text: str, attachments=None, parse_mode=None):
+            return await respond(callback_event, text, attachments, parse_mode)
 
         if payload == 'cmd_list':
             chat_id = None
@@ -1297,14 +1265,15 @@ def register_handlers(dp, bot):
                 awaiting_actions[str(chat_id)] = state_obj
             
             await _respond(
-                "📚 **Подбор книг с AI**\n\n"
+                "<b>📚 Подбор книг с AI</b>\n\n"
                 "Опишите что вы хотите почитать в свободной форме. Например:\n\n"
-                "• \"Хочу что-то мотивирующее про бизнес\"\n"
-                "• \"Посоветуйте легкую фантастику на вечер\"\n"  
-                "• \"Ищу книгу про психологию отношений\"\n"
-                "• \"Что-то про саморазвитие, но не занудное\"\n\n"
+                "• <i>\"Хочу что-то мотивирующее про бизнес\"</i>\n"
+                "• <i>\"Посоветуйте легкую фантастику на вечер\"</i>\n"  
+                "• <i>\"Ищу книгу про психологию отношений\"</i>\n"
+                "• <i>\"Что-то про саморазвитие, но не занудное\"</i>\n\n"
                 "Я проанализирую ваш запрос и найду подходящие книги! 🤖",
-                attachments=[back_to_menu_markup()]
+                attachments=[back_to_menu_markup()],
+                parse_mode=ParseMode.HTML
             )
             return
 
