@@ -21,14 +21,21 @@ from core.keyboards import (
     main_keyboard_markup,
     back_to_menu_markup,
     action_menu_markup,
+    task_list_menu_markup,
+    clear_tasks_menu_markup,
+    confirm_clear_tasks_markup,
     action_schedule_menu_markup,
     action_schedule_remove_menu_markup,
     reminder_choice_markup,
     day_choice_markup,
     timezone_choice_markup,
     motivation_style_markup,
+    quarterly_report_menu_markup,
 )
 from core.models import Task, Schedule, UserSettings
+from core.task_manager import clear_all_tasks, clear_completed_tasks, clear_expired_tasks, get_task_statistics, increment_completed_tasks_counter, get_total_completed_tasks
+from core.books import book_search_service
+from core.reports import quarterly_report_service
 from core.callbacks import derive_user_id, derive_chat_id, extract_payload, deep_search, respond
 from core.achievements import check_and_unlock_achievements, get_all_achievements
 from core.motivation import (
@@ -39,6 +46,7 @@ from core.motivation import (
 )
 from maxapi.types import BotStarted, Command, MessageCreated
 from maxapi.filters import F
+from maxapi.enums.parse_mode import ParseMode
 
 
 # Константы для дней недели
@@ -69,7 +77,6 @@ def register_handlers(dp, bot):
     async def start_command(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (start_command)")
                 return
         except Exception:
             pass
@@ -83,33 +90,32 @@ def register_handlers(dp, bot):
         if not user_settings or not user_settings.timezone:
             # Просим выбрать timezone - это критично для работы бота
             await event.message.answer(
-                "🌍 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
+                "<b>🌍 Привет! Я Кузя</b> — твой персональный помощник по продуктивности и развитию.\n\n"
                 "Сначала выбери свой часовой пояс:",
-                attachments=[timezone_choice_markup()]
+                attachments=[timezone_choice_markup()],
+                parse_mode=ParseMode.HTML
             )
             return
         
         # Если timezone уже установлен, показываем главное меню
-        completed_count = await Task.filter(chat_id=chat_id, status="done").count()
+        completed_count = await get_total_completed_tasks(chat_id)
 
         start_message = (
-            "👋 Привет! Я Кузя — твой персональный помощник по продуктивности и развитию.\n\n"
-            f"✅ Выполнено задач: {completed_count}\n\n"
+            "<b>👋 Привет! Я Кузя</b> — твой персональный помощник по продуктивности и развитию.\n\n"
+            f"✅ <b>Выполнено задач:</b> <u>{completed_count}</u>\n\n"
             "Выберите действие ниже: я помогу с задачами, расписанием и напоминаниями."
         )
-        await event.message.answer(text=start_message, attachments=[main_keyboard_markup()])
+        await event.message.answer(text=start_message, attachments=[main_keyboard_markup()], parse_mode=ParseMode.HTML)
 
     @dp.message_created(Command('add'))
     async def add_task_command(event: MessageCreated):
         try:
             if not is_event_allowed(event):
-                logging.info("/add from disallowed user/chat — ignoring")
                 return
         except Exception:
             pass
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (add_task_command)")
                 return
         except Exception:
             pass
@@ -125,15 +131,15 @@ def register_handlers(dp, bot):
             text=task_text
         )
         await event.message.answer(
-            "✅ Задача добавлена. Если хотите добавить ещё — просто пришлите текст задачи.",
-            attachments=[back_to_menu_markup()]
+            "<b>✅ Задача добавлена.</b> Если хотите добавить ещё — просто пришлите текст задачи.",
+            attachments=[back_to_menu_markup()],
+            parse_mode=ParseMode.HTML
         )
 
     @dp.message_created(Command('decompose'))
     async def decompose_task(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (decompose_task)")
                 return
         except Exception:
             pass
@@ -153,7 +159,7 @@ def register_handlers(dp, bot):
         subtasks = await decompose_with_ai(int(chat_id), task_text)
         
         if not subtasks:
-            await event.message.answer("❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
+            await event.message.answer("<b>❌ Не удалось разбить задачу.</b> Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
             return
         
         main_task = await Task.create(
@@ -172,27 +178,24 @@ def register_handlers(dp, bot):
                 parent_id=main_task.id
             )
         
-        result = f"✅ Задача разбита на {len(subtasks)} подзадач:\n\n"
-        result += f"📋 Главная задача: {task_text}\n\n"
-        result += "Подзадачи:\n"
+        result = f"<b>✅ Задача разбита на {len(subtasks)} подзадач:</b>\n\n"
+        result += f"📋 <b>Главная задача:</b> <i>{task_text}</i>\n\n"
+        result += "<b>Подзадачи:</b>\n"
         for i, subtask in enumerate(subtasks, 1):
             result += f"{i}. {subtask}\n"
         
-        await event.message.answer(result, attachments=[back_to_menu_markup()])
+        await event.message.answer(result, attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
 
     @dp.message_created(F.message.body.text & ~F.message.body.text.startswith('/'))
     async def add_task_plain_text(event: MessageCreated):
-        logging.info("add_task_plain_text handler triggered")
         try:
             if not is_event_allowed(event):
-                logging.info("Message from disallowed user/chat — ignoring")
                 return
         except Exception:
             logging.exception("Exception in is_event_allowed check")
             pass
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (plain_text)")
                 return
         except Exception:
             pass
@@ -222,13 +225,8 @@ def register_handlers(dp, bot):
         state = None
         if user_key and user_key in awaiting_actions:
             state = awaiting_actions.get(user_key)
-            logging.info("Consuming awaiting state by user_key=%s: %s", user_key, state)
         elif chat_key and chat_key in awaiting_actions:
             state = awaiting_actions.get(chat_key)
-            logging.info("Consuming awaiting state by chat_key=%s: %s", chat_key, state)
-        
-        if not state:
-            logging.info("No awaiting state found for user_key=%s chat_key=%s. awaiting_actions keys: %s", user_key, chat_key, list(awaiting_actions.keys()))
         
         if state:
             action = state.get('action')
@@ -280,38 +278,38 @@ def register_handlers(dp, bot):
                     )
                 return
 
-            if action == 'custom_reminder_input':
-                # Пользователь вводит количество минут для напоминания
-                reminder_text = text.strip()
-                schedule_id = state.get('schedule_id')
-                logging.info(f"Processing custom_reminder_input: text={reminder_text}, schedule_id={schedule_id}")
-                
-                if not reminder_text:
-                    await event.message.answer(
-                        "❌ Пожалуйста, введите число минут для напоминания",
-                        attachments=[back_to_menu_markup()]
-                    )
+            if action == 'decompose_input':
+                task_text = text.strip()
+                if not task_text:
+                    await event.message.answer("Пожалуйста, отправьте текст задачи для разбиения.", attachments=[back_to_menu_markup()])
                     return
                 
-                # Пытаемся преобразовать в число
-                try:
-                    reminder_minutes = int(reminder_text)
-                except ValueError:
-                    await event.message.answer(
-                        f"❌ '{reminder_text}' не является числом.\n\n"
-                        "Пожалуйста, введите целое число (например: 10, 30, 60)",
-                        attachments=[back_to_menu_markup()]
-                    )
+                # Сохраняем текст задачи и переходим в состояние выбора количества подзадач
+                new_state = {
+                    'action': 'awaiting_decompose_button',
+                    'chat_id': chat_id,
+                    'task_text': task_text
+                }
+                if user_key:
+                    awaiting_actions[user_key] = new_state
+                if chat_key:
+                    awaiting_actions[chat_key] = new_state
+                
+                from core.keyboards import decompose_count_markup
+                await event.message.answer(
+                    f"� Задача: {task_text}\n\nВыберите количество подзадач:",
+                    attachments=[decompose_count_markup()]
+                )
+                return
+
+            if action == 'book_search_input':
+                # Пользователь ввел запрос для поиска книг
+                user_request = text.strip()
+                if not user_request:
+                    await event.message.answer("Пожалуйста, опишите какую книгу вы хотите найти.", attachments=[back_to_menu_markup()])
                     return
                 
-                # Проверяем валидность
-                if not is_valid_reminder_minutes(reminder_minutes):
-                    await event.message.answer(
-                        f"❌ Неверное значение: {reminder_minutes}\n\n"
-                        "Напоминание должно быть в диапазоне 0-10080 минут",
-                        attachments=[back_to_menu_markup()]
-                    )
-                    return
+                from core.message_utils import smart_send_or_edit
                 
                 # Очищаем состояние
                 if user_key:
@@ -319,101 +317,133 @@ def register_handlers(dp, bot):
                 if chat_key:
                     awaiting_actions.pop(chat_key, None)
                 
-                # Обновляем расписание
-                try:
-                    schedule = await Schedule.filter(id=schedule_id, chat_id=chat_id).first()
-                    if schedule:
-                        schedule.reminder_minutes = reminder_minutes
-                        await schedule.save(update_fields=["reminder_minutes", "updated_at"])
-                        
-                        reminder_label = minutes_to_human_readable(reminder_minutes) if reminder_minutes > 0 else "выключено"
-                        day_name = DAY_NAMES_RU[schedule.day_of_week]
-                        
-                        response = f"✅ Расписание сохранено: {day_name} в {schedule.time}\n"
-                        response += f"📝 Задача: {schedule.text}\n"
-                        response += f"⏰ Основное напоминание: за 1 минуту до события\n"
-                        if reminder_minutes > 0:
-                            response += f"⏳ Дополнительное напоминание: {reminder_label}"
-                        
-                        await event.message.answer(response, attachments=[action_schedule_menu_markup()])
-                        logging.info(f"Custom reminder set: schedule_id={schedule_id}, reminder_minutes={reminder_minutes}")
-                    else:
-                        await event.message.answer("❌ Расписание не найдено", attachments=[back_to_menu_markup()])
-                except Exception as e:
-                    logging.exception("Ошибка при сохранении кастомного напоминания")
-                    await event.message.answer(
-                        f"❌ Ошибка при сохранении: {str(e)}",
-                        attachments=[back_to_menu_markup()]
-                    )
-                return
-
-            if action == 'decompose_input':
-                task_text = text.strip()
-                if not task_text:
-                    await event.message.answer("Пожалуйста, отправьте текст задачи для разбиения.", attachments=[back_to_menu_markup()])
-                    return
+                chat_id = _resolve_chat_id(event)
                 
-                logging.info("Clearing awaiting keys: user_key=%s chat_key=%s", user_key, chat_key)
-                if user_key:
-                    awaiting_actions.pop(user_key, None)
-                if chat_key:
-                    awaiting_actions.pop(chat_key, None)
-                
-                await event.message.answer("🤖 Анализирую задачу и разбиваю на подзадачи...")
-                
-                from core.ai_core import decompose_with_ai
-                subtasks = await decompose_with_ai(int(chat_id), task_text)
-                
-                if not subtasks:
-                    await event.message.answer("❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
-                    return
-                
-                main_task = await Task.create(
+                # Показываем что идет поиск
+                await smart_send_or_edit(
+                    bot=bot,
+                    event=event,
+                    text="🔍 Ищу подходящие книги...",
                     chat_id=chat_id,
-                    user_id=user_id,
-                    text=task_text,
-                    status="pending"
+                    message_type="book_search"
                 )
                 
-                for subtask_text in subtasks:
-                    await Task.create(
+                try:
+                    # Выполняем поиск книг
+                    books = await book_search_service.search_books(user_request, max_results=3)
+                    
+                    if books:
+                        # Формируем единое сообщение со всеми результатами
+                        result_lines = [
+                            f"<b>📚 Нашел {len(books)} книг по запросу:</b> <i>\"{user_request}\"</i>",
+                            ""
+                        ]
+                        
+                        # Добавляем все книги в одно сообщение
+                        for i, book in enumerate(books, 1):
+                            book_text = book_search_service.format_book_result(book)
+                            result_lines.append(f"<b>{i}.</b>")
+                            result_lines.append(book_text)
+                            if i < len(books):  # Добавляем разделитель между книгами
+                                result_lines.append("")
+                        
+                        result_lines.append("")
+                        result_lines.append("✨ Хотите найти еще книги? Нажмите 📚 <b>Подбор книг</b> в главном меню.")
+                        
+                        # Редактируем сообщение о поиске на результат
+                        await smart_send_or_edit(
+                            bot=bot,
+                            event=event,
+                            text="\n".join(result_lines),
+                            chat_id=chat_id,
+                            message_type="book_search",
+                            attachments=[back_to_menu_markup()],
+                            parse_mode=ParseMode.HTML
+                        )
+                            
+                    else:
+                        # Редактируем сообщение на "не найдено"
+                        await smart_send_or_edit(
+                            bot=bot,
+                            event=event,
+                            text=f"😔 К сожалению, не удалось найти книги по запросу <i>\"{user_request}\"</i>.\n\n"
+                                 "<b>Попробуйте:</b>\n"
+                                 "• Изменить формулировку\n" 
+                                 "• Указать жанр или автора\n"
+                                 "• Использовать более общие термины",
+                            chat_id=chat_id,
+                            message_type="book_search",
+                            attachments=[back_to_menu_markup()],
+                            parse_mode=ParseMode.HTML
+                        )
+                        
+                except Exception as e:
+                    logging.exception(f"Error in book search: {e}")
+                    # Редактируем сообщение на ошибку
+                    await smart_send_or_edit(
+                        bot=bot,
+                        event=event,
+                        text="❌ Произошла ошибка при поиске книг. Попробуйте позже.",
                         chat_id=chat_id,
-                        user_id=user_id,
-                        text=subtask_text,
-                        status="pending",
-                        parent_id=main_task.id
+                        message_type="book_search",
+                        attachments=[back_to_menu_markup()]
                     )
                 
-                result = f"✅ Задача разбита на {len(subtasks)} подзадач:\n\n"
-                result += f"📋 Главная задача: {task_text}\n\n"
-                result += "Подзадачи:\n"
-                for i, subtask in enumerate(subtasks, 1):
-                    result += f"{i}. {subtask}\n"
-                
-                await event.message.answer(result, attachments=[back_to_menu_markup()])
                 return
 
             if action == 'done_selection':
-                ids = []
-                for token in text.split():
-                    try:
-                        ids.append(int(token))
-                    except Exception:
-                        continue
-                if not ids:
-                    await event.message.answer("Не удалось распознать номера. Отправьте числа через пробел (например: 3 или 1 2 5).", attachments=[back_to_menu_markup()])
+                # Парсим номера: могут быть "1", "2", "1а", "1б" и т.д.
+                tokens = text.split()
+                if not tokens:
+                    await event.message.answer("Не удалось распознать номера. Отправьте номера через пробел (например: 1 или 1а 1б).", attachments=[back_to_menu_markup()])
                     return
                 index_map = state.get('map') or {}
+                logging.info(f"done_selection: tokens={tokens}, index_map keys={list(index_map.keys())}")
                 succeeded, failed = [], []
-                for shown_num in ids:
-                    real_id = index_map.get(shown_num) if index_map else shown_num
+                
+                for token in tokens:
+                    token = token.strip()
+                    real_id = index_map.get(token)
+                    logging.info(f"Processing token='{token}', real_id={real_id}")
+                    if not real_id:
+                        failed.append(token)
+                        continue
+                    
                     task = await Task.filter(id=real_id, chat_id=chat_id).first()
                     if task is None or task.status == 'done':
-                        failed.append(shown_num)
+                        failed.append(token)
                         continue
+                    
                     task.status = 'done'
                     await task.save(update_fields=["status", "updated_at"])
-                    succeeded.append(shown_num)
+                    
+                    # Увеличиваем общий счетчик выполненных задач
+                    await increment_completed_tasks_counter(str(chat_id), 1)
+                    
+                    # Если это подзадача — проверяем все ли её братья выполнены
+                    if task.parent_id:
+                        remaining = await Task.filter(parent_id=task.parent_id, chat_id=chat_id).exclude(status='done').count()
+                        if remaining == 0:
+                            parent_task = await Task.filter(id=task.parent_id, chat_id=chat_id).first()
+                            if parent_task and parent_task.status != 'done':
+                                parent_task.status = 'done'
+                                await parent_task.save(update_fields=["status", "updated_at"])
+                                # Увеличиваем счетчик и для родительской задачи
+                                await increment_completed_tasks_counter(str(chat_id), 1)
+                    else:
+                        # Если это родительская задача — закрываем все подзадачи
+                        subtasks = await Task.filter(parent_id=task.id, chat_id=chat_id).all()
+                        subtask_count = 0
+                        for subtask in subtasks:
+                            if subtask.status != 'done':
+                                subtask.status = 'done'
+                                await subtask.save(update_fields=["status", "updated_at"])
+                                subtask_count += 1
+                        # Увеличиваем счетчик на количество закрытых подзадач
+                        if subtask_count > 0:
+                            await increment_completed_tasks_counter(str(chat_id), subtask_count)
+                    
+                    succeeded.append(token)
                 logging.info("Clearing awaiting keys: user_key=%s chat_key=%s", user_key, chat_key)
                 if user_key:
                     awaiting_actions.pop(user_key, None)
@@ -426,7 +456,7 @@ def register_handlers(dp, bot):
                     parts.append(f"⚠️ Необработаны/не найдены: {', '.join(map(str, failed))}")
                 
                 if chat_id:
-                    completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                    completed_count = await get_total_completed_tasks(str(chat_id))
                     parts.append(f"\n📊 Всего выполнено задач: {completed_count}")
                     
                     new_achievement = await check_and_unlock_achievements(str(chat_id))
@@ -621,7 +651,6 @@ def register_handlers(dp, bot):
                 from core.handlers import DAY_NAMES_RU
                 day_name = DAY_NAMES_RU[day_of_week]
                 info_msg = f"✅ Расписание добавлено:\n{day_name} в {time_str} - {task_text}\n\n"
-                info_msg += "⏰ Основное напоминание: за 1 минуту до события\n"
                 info_msg += "Выберите дополнительное напоминание:"
                 
                 # Сохраняем ID расписания для выбора напоминания
@@ -700,8 +729,7 @@ def register_handlers(dp, bot):
                 # Теперь спрашиваем напоминание через кнопки
                 from core.handlers import DAY_NAMES_RU
                 day_name = DAY_NAMES_RU[day_of_week]
-                info_msg = f"✅ Расписание добавлено: {day_name} в {time_str} - {task_text}\n"
-                info_msg += f"⏰ Основное напоминание: за 1 минуту до события\n\n"
+                info_msg = f"✅ Расписание добавлено: {day_name} в {time_str} - {task_text}\n\n"
                 info_msg += "Выберите когда еще напоминать:"
                 
                 # Сохраняем ID расписания в состоянии для обработки выбора напоминания
@@ -711,59 +739,15 @@ def register_handlers(dp, bot):
                 await event.message.answer(info_msg, attachments=[reminder_choice_markup()])
                 return
 
-            if action == 'custom_reminder_input':
-                # Пользователь вводит кастомное значение напоминания
-                reminder_text = text.strip().lower()
-                schedule_id = state.get('schedule_id')
-                chat_id = state.get('chat_id')
-                
-                # Обработка отключения напоминания
-                if reminder_text in ('off', 'none', '0', 'выкл', 'выключить'):
-                    reminder_minutes = 0
-                else:
-                    try:
-                        reminder_minutes = int(text.strip())
-                    except ValueError:
-                        await event.message.answer(
-                            "❌ Пожалуйста, введите число минут (0-10080) или 'off' для выключения.",
-                            attachments=[back_to_menu_markup()]
-                        )
-                        return
-                
-                if not is_valid_reminder_minutes(reminder_minutes):
-                    await event.message.answer(
-                        f"❌ Неверное значение. Введите число от 0 до 10080 минут.",
-                        attachments=[back_to_menu_markup()]
-                    )
-                    return
-                
-                # Обновляем расписание
-                try:
-                    schedule = await Schedule.filter(id=schedule_id, chat_id=chat_id).first()
-                    if schedule:
-                        schedule.reminder_minutes = reminder_minutes
-                        await schedule.save(update_fields=["reminder_minutes", "updated_at"])
-                        
-                        reminder_label = minutes_to_human_readable(reminder_minutes) if reminder_minutes > 0 else "выключено"
-                        day_name = DAY_NAMES_RU[schedule.day_of_week]
-                        response = f"✅ Расписание сохранено: {day_name} в {schedule.time}\n"
-                        response += f"📝 Задача: {schedule.text}\n"
-                        response += f"⏰ Основное напоминание: за 1 минуту до события\n"
-                        if reminder_minutes > 0:
-                            response += f"⏳ Дополнительное напоминание: {reminder_label}"
-                        
-                        # Очищаем состояние
-                        if user_key:
-                            awaiting_actions.pop(user_key, None)
-                        if chat_key:
-                            awaiting_actions.pop(chat_key, None)
-                        
-                        await event.message.answer(response, attachments=[action_schedule_menu_markup()])
-                    else:
-                        await event.message.answer("❌ Расписание не найдено.", attachments=[back_to_menu_markup()])
-                except Exception as e:
-                    logging.exception("Ошибка при обновлении кастомного напоминания")
-                    await event.message.answer(f"❌ Ошибка: {str(e)}", attachments=[back_to_menu_markup()])
+            if action == 'awaiting_decompose_button':
+                # Это состояние должно обрабатываться только через callback (кнопки выбора количества)
+                # Если текст отправлен - показываем кнопки снова
+                task_text = state.get('task_text', 'задачи')
+                from core.keyboards import decompose_count_markup
+                await event.message.answer(
+                    f"👆 Задача: {task_text}\n\nПожалуйста, выберите количество подзадач через кнопки:",
+                    attachments=[decompose_count_markup()]
+                )
                 return
 
             if action == 'reminder_choice':
@@ -800,26 +784,56 @@ def register_handlers(dp, bot):
     async def list_tasks(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (list_tasks)")
                 return
         except Exception:
             pass
         chat_id = _resolve_chat_id(event)
-        tasks = await Task.filter(chat_id=chat_id).order_by("status", "created_at")
-        if not tasks:
+        # Получаем только родительские задачи
+        parent_tasks = await Task.filter(chat_id=chat_id, parent_id=None).order_by("status", "created_at")
+        if not parent_tasks:
             await event.message.answer("Задач пока нет. Добавьте новую командой /add <текст>")
             return
-        lines = []
-        for idx, task in enumerate(tasks, start=1):
-            status = "✅" if task.status == "done" else "🔸"
-            lines.append(f"{idx}. {status} {task.text}")
-        await event.message.answer("Список задач:\n" + "\n".join(lines))
+        lines = [
+            "<b>📋 Список задач:</b>",
+            "",
+            "🔸 — <i>активные (не выполнены)</i>",
+            "⏰ — <i>просроченные</i>", 
+            "✅ — <i>выполненные</i>",
+            ""
+        ]
+        letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н', 'о', 'п']
+        
+        for idx, parent in enumerate(parent_tasks, start=1):
+            # Определяем статус с учетом просроченных задач
+            if parent.status == "done":
+                status = "✅"
+            elif parent.status == "expired":
+                status = "⏰"  # Просроченная
+            else:
+                status = "🔸"  # Pending
+                
+            ai_marker = '🤖 ' if getattr(parent, 'ai_generated', False) else ''
+            lines.append(f"{idx}. {status} {ai_marker}{parent.text}")
+            
+            # Получаем подзадачи для этой родительской задачи
+            subtasks = await Task.filter(chat_id=chat_id, parent_id=parent.id).order_by("status", "created_at")
+            for sub_idx, subtask in enumerate(subtasks):
+                letter = letter_map[sub_idx] if sub_idx < len(letter_map) else f"{sub_idx+1}"
+                # Статус подзадачи с учетом просроченных
+                if subtask.status == "done":
+                    sub_status = "✅"
+                elif subtask.status == "expired":
+                    sub_status = "⏰"
+                else:
+                    sub_status = "▫️"
+                lines.append(f"   {idx}{letter}. {sub_status} {subtask.text}")
+        
+        await event.message.answer("\n".join(lines), attachments=[task_list_menu_markup()], parse_mode=ParseMode.HTML)
 
     @dp.message_created(Command('done'))
     async def mark_task_done(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (mark_task_done)")
                 return
         except Exception:
             pass
@@ -844,17 +858,20 @@ def register_handlers(dp, bot):
                 await event.message.answer("Задача не найдена.")
                 return
         if task.status == "done":
-            await event.message.answer("Эта задача уже выполнена ✅")
+            await event.message.answer("<i>Эта задача уже выполнена</i> ✅", parse_mode=ParseMode.HTML)
             return
         task.status = "done"
         await task.save(update_fields=["status", "updated_at"])
-        await event.message.answer(f"Задача {task.id} отмечена как выполненная ✅")
+        
+        # Увеличиваем общий счетчик выполненных задач
+        await increment_completed_tasks_counter(_resolve_chat_id(event), 1)
+        
+        await event.message.answer(f"<b>Задача {task.id} отмечена как выполненная</b> ✅", parse_mode=ParseMode.HTML)
 
     @dp.message_created(Command('schedule_add'))
     async def add_schedule(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (add_schedule)")
                 return
         except Exception:
             pass
@@ -878,7 +895,6 @@ def register_handlers(dp, bot):
     async def set_schedule_reminder(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (set_schedule_reminder)")
                 return
         except Exception:
             pass
@@ -920,7 +936,6 @@ def register_handlers(dp, bot):
     async def list_schedule(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (list_schedule)")
                 return
         except Exception:
             pass
@@ -946,7 +961,6 @@ def register_handlers(dp, bot):
     async def remove_schedule(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (remove_schedule)")
                 return
         except Exception:
             pass
@@ -973,7 +987,6 @@ def register_handlers(dp, bot):
     async def set_timezone(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (set_timezone)")
                 return
         except Exception:
             pass
@@ -1045,7 +1058,6 @@ def register_handlers(dp, bot):
     async def on_button_pressed(callback_event):
         try:
             if not is_callback_allowed(callback_event):
-                logging.info("Callback from disallowed user/chat — ignoring")
                 return
         except Exception:
             pass
@@ -1131,8 +1143,8 @@ def register_handlers(dp, bot):
         except Exception:
             logging.exception("Ошибка логирования отладки callback_event")
 
-        async def _respond(text: str, attachments=None):
-            return await respond(callback_event, text, attachments)
+        async def _respond(text: str, attachments=None, parse_mode=None):
+            return await respond(callback_event, text, attachments, parse_mode)
 
         if payload == 'cmd_list':
             chat_id = None
@@ -1142,15 +1154,47 @@ def register_handlers(dp, bot):
                 chat_id = None
             if chat_id is None:
                 chat_id = str(callback_event.message.sender.user_id)
-            tasks = await Task.filter(chat_id=str(chat_id)).order_by("status", "created_at")
-            if not tasks:
+            # Получаем только родительские задачи
+            parent_tasks = await Task.filter(chat_id=str(chat_id), parent_id=None).order_by("status", "created_at")
+            if not parent_tasks:
                 await _respond("Задач пока нет. Добавьте новую командой /add <текст>", attachments=[back_to_menu_markup()])
                 return
-            lines = []
-            for idx, task in enumerate(tasks, start=1):
-                status = "✅" if task.status == "done" else "🔸"
-                lines.append(f"{idx}. {status} {task.text}")
-            await _respond("Список задач:\n" + "\n".join(lines), attachments=[back_to_menu_markup()])
+            lines = [
+                "<b>📋 Список задач:</b>",
+                "",
+                "🔸 — <i>активные (не выполнены)</i>",
+                "⏰ — <i>просроченные</i>", 
+                "✅ — <i>выполненные</i>",
+                ""
+            ]
+            letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н', 'о', 'п']
+            
+            for idx, parent in enumerate(parent_tasks, start=1):
+                # Определяем статус с учетом просроченных задач
+                if parent.status == "done":
+                    status = "✅"
+                elif parent.status == "expired":
+                    status = "⏰"  # Просроченная
+                else:
+                    status = "🔸"  # Pending
+                    
+                ai_marker = '🤖 ' if getattr(parent, 'ai_generated', False) else ''
+                lines.append(f"{idx}. {status} {ai_marker}{parent.text}")
+                
+                # Получаем подзадачи для этой родительской задачи
+                subtasks = await Task.filter(chat_id=str(chat_id), parent_id=parent.id).order_by("status", "created_at")
+                for sub_idx, subtask in enumerate(subtasks):
+                    letter = letter_map[sub_idx] if sub_idx < len(letter_map) else f"{sub_idx+1}"
+                    # Статус подзадачи с учетом просроченных
+                    if subtask.status == "done":
+                        sub_status = "✅"
+                    elif subtask.status == "expired":
+                        sub_status = "⏰"
+                    else:
+                        sub_status = "▫️"
+                    lines.append(f"   {idx}{letter}. {sub_status} {subtask.text}")
+            
+            await _respond("\n".join(lines), attachments=[task_list_menu_markup()], parse_mode=ParseMode.HTML)
             return
 
         if payload == 'cmd_add':
@@ -1172,6 +1216,18 @@ def register_handlers(dp, bot):
                     user_id = str(callback_event.message.sender.user_id)
                 except Exception:
                     user_id = None
+            
+            # Очищаем ВСЕ старые состояния для этого чата перед установкой нового
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state_to_check = awaiting_actions.get(key, {})
+                if state_to_check.get('chat_id') == str(chat_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
+                logging.info("Cleared old decompose state for key: %s", key)
+            
             state_obj = {'action': 'decompose_input', 'chat_id': str(chat_id)}
             if user_id is not None:
                 awaiting_actions[str(user_id)] = state_obj
@@ -1179,6 +1235,208 @@ def register_handlers(dp, bot):
             if chat_id is not None:
                 awaiting_actions[str(chat_id)] = state_obj
             await _respond("Отправьте задачу для разбиения на подзадачи или используйте /decompose <текст>", attachments=[back_to_menu_markup()])
+            return
+
+        if payload == 'cmd_book_search':
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            user_id = derive_user_id(callback_event) or None
+            if user_id is None:
+                try:
+                    user_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    user_id = None
+            
+            # Очищаем ВСЕ старые состояния для этого чата перед установкой нового
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state_to_check = awaiting_actions.get(key, {})
+                if state_to_check.get('chat_id') == str(chat_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
+                logging.info("Cleared old book search state for key: %s", key)
+            
+            state_obj = {'action': 'book_search_input', 'chat_id': str(chat_id)}
+            if user_id is not None:
+                awaiting_actions[str(user_id)] = state_obj
+                logging.info("awaiting state set: user=%s chat=%s action=%s", str(user_id), str(chat_id), 'book_search_input')
+            if chat_id is not None:
+                awaiting_actions[str(chat_id)] = state_obj
+            
+            await _respond(
+                "<b>📚 Подбор книг с AI</b>\n\n"
+                "Опишите что вы хотите почитать в свободной форме. Например:\n\n"
+                "• <i>\"Хочу что-то мотивирующее про бизнес\"</i>\n"
+                "• <i>\"Посоветуйте легкую фантастику на вечер\"</i>\n"  
+                "• <i>\"Ищу книгу про психологию отношений\"</i>\n"
+                "• <i>\"Что-то про саморазвитие, но не занудное\"</i>\n\n"
+                "Я проанализирую ваш запрос и найду подходящие книги! 🤖",
+                attachments=[back_to_menu_markup()],
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        # Обработчик квартальных отчётов
+        if payload == 'cmd_quarterly_report':
+            await _respond(
+                "<b>📊 Квартальный отчёт о прогрессе</b>\n\n"
+                "Выберите период для формирования отчёта:",
+                attachments=[quarterly_report_menu_markup()],
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        # Отладочная команда для проверки задач
+        if payload == 'cmd_debug_tasks':
+            user_id = derive_user_id(callback_event) or str(callback_event.message.sender.user_id)
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.recipient.chat_id)
+            
+            try:
+                debug_info = await quarterly_report_service.debug_user_tasks(user_id, chat_id)
+                
+                debug_text = f"<b>🔍 Отладочная информация по задачам</b>\n\n"
+                debug_text += f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+                debug_text += f"💬 <b>Chat ID:</b> <code>{chat_id}</code>\n\n"
+                debug_text += f"📊 <b>Всего задач:</b> {debug_info['total_tasks']}\n\n"
+                debug_text += "📈 По статусам:\n"
+                for status, count in debug_info['by_status'].items():
+                    debug_text += f"• <i>{status}:</i> {count}\n"
+                
+                if debug_info['tasks_info']:
+                    debug_text += "\n🗂️ Последние задачи:\n"
+                    for task_id, text, status, created in debug_info['tasks_info']:
+                        debug_text += f"• <b>#{task_id}</b> [<i>{status}</i>] {created}\n  📝 {text}\n"
+                
+                await _respond(debug_text, attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
+                
+            except Exception as e:
+                logging.error(f"Error in debug_tasks: {e}")
+                await _respond(f"❌ Ошибка отладки: {e}", attachments=[back_to_menu_markup()])
+            return
+        
+        # Обработка выбора квартала
+        if payload and payload.startswith('quarterly_'):
+            user_id = derive_user_id(callback_event) or str(callback_event.message.sender.user_id)
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.recipient.chat_id)
+            
+            try:
+                if payload == 'quarterly_current':
+                    # Текущий квартал
+                    report = await quarterly_report_service.generate_quarterly_report(user_id, chat_id)
+                else:
+                    # Конкретный квартал текущего года
+                    quarter = int(payload.split('_')[1])
+                    from datetime import datetime
+                    current_year = datetime.now().year
+                    report = await quarterly_report_service.generate_quarterly_report(user_id, chat_id, current_year, quarter)
+                
+                await _respond(report, attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
+                
+            except Exception as e:
+                logging.error(f"Error generating quarterly report: {e}")
+                await _respond(
+                    "<b>❌ Произошла ошибка при создании отчёта.</b> Попробуйте позже.",
+                    attachments=[back_to_menu_markup()],
+                    parse_mode=ParseMode.HTML
+                )
+            return
+
+        # Обработка выбора количества подзадач через кнопки
+        if payload and payload.startswith('decomp_n_'):
+            # Находим сохранённое состояние с task_text
+            chat_id = derive_chat_id(callback_event) or None
+            if chat_id is None:
+                try:
+                    chat_id = callback_event.message.recipient.chat_id
+                except Exception:
+                    chat_id = None
+            if chat_id is None:
+                chat_id = str(callback_event.message.sender.user_id)
+            user_id = derive_user_id(callback_event) or None
+            if user_id is None:
+                try:
+                    user_id = str(callback_event.message.sender.user_id)
+                except Exception:
+                    user_id = None
+            state = awaiting_actions.get(str(chat_id)) or awaiting_actions.get(str(user_id)) or {}
+            task_text = state.get('task_text')
+            if not task_text:
+                await _respond("Сначала отправьте текст задачи.", attachments=[back_to_menu_markup()])
+                return
+            # Извлекаем число из payload (decomp_n_3 -> 3)
+            try:
+                n = int(payload.split('_')[-1])
+            except Exception:
+                await _respond("Неверный формат номера подзадач.", attachments=[back_to_menu_markup()])
+                return
+            # Очищаем состояние перед запуском - убираем ВСЕ состояния для этого чата
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state_to_check = awaiting_actions.get(key, {})
+                if state_to_check.get('chat_id') == str(chat_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
+                logging.info("Cleared state for key: %s", key)
+            
+            # Редактируем сообщение с кнопками, показывая что анализируем
+            try:
+                await callback_event.message.edit(text=f"🤖 Анализирую задачу и разбиваю на {n} подзадач...", attachments=[])
+            except Exception:
+                pass
+            
+            # Запускаем декомпозицию
+            from core.ai_core import decompose_with_ai
+            try:
+                subtasks = await decompose_with_ai(int(chat_id), task_text, max_subtasks=n)
+            except Exception:
+                logging.exception("AI decomposition failed")
+                subtasks = []
+            
+            if not subtasks:
+                try:
+                    await callback_event.message.edit(text="❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
+                except Exception:
+                    await callback_event.message.answer("❌ Не удалось разбить задачу. Попробуйте позже или проверьте настройки AI.", attachments=[back_to_menu_markup()])
+                return
+            
+            main_task = await Task.create(
+                chat_id=str(chat_id),
+                user_id=str(user_id),
+                text=task_text,
+                status="pending",
+                ai_generated=True
+            )
+            
+            created_subtasks = []
+            for subtask_text in subtasks:
+                t = await Task.create(
+                    chat_id=str(chat_id),
+                    user_id=str(user_id),
+                    text=subtask_text,
+                    status="pending",
+                    parent_id=main_task.id,
+                    ai_generated=True
+                )
+                created_subtasks.append(t.text)
+            
+            # Формируем ответ и редактируем сообщение "Анализирую..."
+            result = [f"✅ Задача разбита на {len(created_subtasks)} подзадач:", "", f"📋 Главная задача: {task_text}", "", "Подзадачи:"]
+            for i, sub in enumerate(created_subtasks, 1):
+                result.append(f"{i}. {sub}")
+            try:
+                await callback_event.message.edit(text="\n".join(result), attachments=[back_to_menu_markup()])
+            except Exception:
+                await callback_event.message.answer("\n".join(result), attachments=[back_to_menu_markup()])
             return
 
         if payload == 'cmd_achievements':
@@ -1192,30 +1450,30 @@ def register_handlers(dp, bot):
                 chat_id = str(callback_event.message.sender.user_id)
             
             achievements = await get_all_achievements(str(chat_id))
-            completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+            completed_count = await get_total_completed_tasks(str(chat_id))
             
             lines = [
-                "🏆 ВАШИ ДОСТИЖЕНИЯ 🏆\n",
-                f"📊 Выполнено задач: {completed_count}\n"
+                "<b>🏆 ВАШИ ДОСТИЖЕНИЯ 🏆</b>\n",
+                f"📊 <b>Выполнено задач:</b> <u>{completed_count}</u>\n"
             ]
             
             unlocked = [a for a in achievements if a["unlocked"]]
             locked = [a for a in achievements if not a["unlocked"]]
             
             if unlocked:
-                lines.append("✨ Разблокированные:\n")
+                lines.append("<b>✨ Разблокированные:</b>\n")
                 for ach in unlocked:
-                    lines.append(f"{ach['emoji']} {ach['title']} — {ach['milestone']} задач")
+                    lines.append(f"{ach['emoji']} <b>{ach['title']}</b> — <i>{ach['milestone']} задач</i>")
             
             if locked:
-                lines.append("\n🔒 Ещё не открыты:\n")
+                lines.append("\n<b>🔒 Ещё не открыты:</b>\n")
                 for ach in locked:
-                    lines.append(f"{ach['emoji']} {ach['title']}")
+                    lines.append(f"{ach['emoji']} <i>{ach['title']}</i>")
             
             if not unlocked and not locked:
-                lines.append("Пока нет достижений. Выполняйте задачи, чтобы разблокировать их!")
+                lines.append("<i>Пока нет достижений. Выполняйте задачи, чтобы разблокировать их!</i>")
             
-            await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
+            await _respond("\n".join(lines), attachments=[back_to_menu_markup()], parse_mode=ParseMode.HTML)
             return
 
         if payload == 'cmd_motivation':
@@ -1236,16 +1494,16 @@ def register_handlers(dp, bot):
                 "aggressive": "💪 Агрессивный"
             }
             
-            status = "включены ✅" if settings.enabled else "выключены 🔕"
+            status = "<b>включены</b> ✅" if settings.enabled else "<b>выключены</b> 🔕"
             message = (
-                "💬 СТИЛЬ МОТИВАЦИИ\n\n"
-                f"Текущий стиль: {style_names.get(settings.style, settings.style)}\n"
-                f"Напоминания: {status}\n\n"
+                "<b>💬 СТИЛЬ МОТИВАЦИИ</b>\n\n"
+                f"<b>Текущий стиль:</b> <i>{style_names.get(settings.style, settings.style)}</i>\n"
+                f"<b>Напоминания:</b> {status}\n\n"
                 "Я буду напоминать вам о невыполненных задачах 2-3 раза в день.\n"
-                "Выберите стиль напоминаний:"
+                "<u>Выберите стиль напоминаний:</u>"
             )
             
-            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)])
+            await _respond(message, attachments=[motivation_style_markup(settings.style, settings.enabled)], parse_mode=ParseMode.HTML)
             return
 
         if payload and payload.startswith('set_style_'):
@@ -1337,23 +1595,51 @@ def register_handlers(dp, bot):
                     chat_id = None
             if chat_id is None:
                 chat_id = str(callback_event.message.sender.user_id)
-            tasks = await Task.filter(chat_id=str(chat_id)).order_by("status", "created_at")
-            if not tasks:
+            
+            # Получаем только родительские задачи
+            parent_tasks = await Task.filter(chat_id=str(chat_id), parent_id=None).order_by("status", "created_at")
+            if not parent_tasks:
                 await _respond("Задач пока нет. Добавьте новую командой /add <текст>", attachments=[back_to_menu_markup()])
                 return
-            lines = []
-            index_map = {}
-            for idx, task in enumerate(tasks, start=1):
-                status = '✅' if task.status == 'done' else '🔸'
-                lines.append(f"{idx}. {status} {task.text}")
-                index_map[idx] = task.id
-            await _respond("Выберите номер задачи для отметки (можно несколько через пробел):\n\n" + "\n".join(lines), attachments=[back_to_menu_markup()])
+            
+            lines = ["Выберите номер задачи для отметки (можно несколько через пробел):\n"]
+            index_map = {}  # Маппинг "1" -> task_id, "1а" -> subtask_id
+            letter_map = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'к', 'л', 'м', 'н']
+            
+            for p_num, p in enumerate(parent_tasks, start=1):
+                p_status = '✅' if p.status == 'done' else '🔸'
+                ai_marker = '🤖 ' if getattr(p, 'ai_generated', False) else ''
+                lines.append(f"{p_num}. {p_status} {ai_marker}{p.text}")
+                index_map[str(p_num)] = p.id  # Родительская задача: "1" -> id
+                
+                # Достаём подзадачи
+                subtasks = await Task.filter(chat_id=str(chat_id), parent_id=p.id).order_by("status", "created_at")
+                for s_idx, s in enumerate(subtasks):
+                    letter = letter_map[s_idx] if s_idx < len(letter_map) else f"{s_idx+1}"
+                    s_status = '✅' if s.status == 'done' else '▫️'
+                    subtask_key = f"{p_num}{letter}"  # "1а", "1б" и т.д.
+                    lines.append(f"   {subtask_key}. {s_status} {s.text}")
+                    index_map[subtask_key] = s.id
+            
+            await _respond("\n".join(lines), attachments=[back_to_menu_markup()])
             user_id = derive_user_id(callback_event) or None
             if user_id is None:
                 try:
                     user_id = str(callback_event.message.sender.user_id)
                 except Exception:
                     user_id = None
+            
+            # Очищаем ВСЕ старые состояния для этого чата перед установкой done_selection
+            keys_to_remove = []
+            for key in list(awaiting_actions.keys()):
+                state_to_check = awaiting_actions.get(key, {})
+                if state_to_check.get('chat_id') == str(chat_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                awaiting_actions.pop(key, None)
+                logging.info("Cleared old state before done_selection for key: %s", key)
+            
             state_obj = {'action': 'done_selection', 'chat_id': str(chat_id), 'map': index_map}
             if user_id is None:
                 logging.warning("Не удалось определить user_id для установки awaiting state (done_selection)")
@@ -1565,7 +1851,7 @@ def register_handlers(dp, bot):
 
         # Обработка выбора напоминания после добавления расписания
         if payload and payload.startswith('reminder_'):
-            # reminder_0, reminder_5, reminder_15, reminder_30, reminder_60, reminder_custom
+            # reminder_0, reminder_5, reminder_15, reminder_30, reminder_60
             reminder_choice = payload.split('_')[1]
             
             user_id = derive_user_id(callback_event)
@@ -1603,26 +1889,6 @@ def register_handlers(dp, bot):
                 await _respond("❌ Ошибка: потеряны данные расписания", attachments=[back_to_menu_markup()])
                 return
             
-            if reminder_choice == 'custom':
-                # Если выбран кастомный ввод, просим пользователя ввести число
-                if user_key:
-                    awaiting_actions[user_key] = {'action': 'custom_reminder_input', 'schedule_id': schedule_id, 'chat_id': chat_id}
-                if chat_key:
-                    awaiting_actions[chat_key] = {'action': 'custom_reminder_input', 'schedule_id': schedule_id, 'chat_id': chat_id}
-                logging.info(f"Custom reminder selected: user_key={user_key}, chat_key={chat_key}, schedule_id={schedule_id}")
-                await _respond(
-                    "⏰ Введите количество минут для дополнительного напоминания:\n\n"
-                    "Примеры:\n"
-                    "• 10 (напомнить за 10 минут)\n"
-                    "• 30 (напомнить за 30 минут)\n"
-                    "• 120 (напомнить за 2 часа)\n"
-                    "• 0 (без дополнительного напоминания)\n\n"
-                    "Максимум 10080 минут (7 дней)",
-                    attachments=[back_to_menu_markup()]
-                )
-                logging.info(f"Custom reminder message sent")
-                return
-            
             # Обработка фиксированных значений
             try:
                 reminder_minutes = int(reminder_choice)
@@ -1644,9 +1910,8 @@ def register_handlers(dp, bot):
                     day_name = DAY_NAMES_RU[schedule.day_of_week]
                     response = f"✅ Расписание сохранено: {day_name} в {schedule.time}\n"
                     response += f"📝 Задача: {schedule.text}\n"
-                    response += f"⏰ Основное напоминание: за 1 минуту до события\n"
                     if reminder_minutes > 0:
-                        response += f"⏳ Дополнительное напоминание: {reminder_label}"
+                        response += f"⏳ Напоминание: {reminder_label}"
                     
                     # Очищаем состояние
                     if user_key:
@@ -1728,6 +1993,65 @@ def register_handlers(dp, bot):
                 )
             return
 
+        # Обработчики для очистки задач
+        if payload == 'cmd_clear_tasks':
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.sender.user_id)
+            
+            # Получаем статистику задач
+            stats = await get_task_statistics(str(chat_id))
+            
+            message = (
+                "🗑️ Очистка задач\n\n"
+                f"📊 Текущая статистика:\n"
+                f"🔸 Активных: {stats['pending']}\n"
+                f"✅ Выполненных: {stats['done']}\n"
+                f"⏰ Просроченных: {stats['expired']}\n"
+                f"📦 Всего: {stats['total']}\n\n"
+                "Выберите что удалить:"
+            )
+            await _respond(message, attachments=[clear_tasks_menu_markup()])
+            return
+
+        if payload in ['clear_all_tasks', 'clear_done_tasks', 'clear_expired_tasks']:
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.sender.user_id)
+            
+            # Определяем тип очистки и сообщение
+            if payload == 'clear_all_tasks':
+                message = "⚠️ Вы уверены что хотите удалить ВСЕ задачи? Это действие необратимо!"
+                clear_type = "all"
+            elif payload == 'clear_done_tasks':
+                message = "Удалить все выполненные задачи?"
+                clear_type = "done"
+            elif payload == 'clear_expired_tasks':
+                message = "Удалить все просроченные задачи?"
+                clear_type = "expired"
+            
+            await _respond(message, attachments=[confirm_clear_tasks_markup(clear_type)])
+            return
+
+        if payload and payload.startswith('confirm_clear_'):
+            chat_id = derive_chat_id(callback_event) or str(callback_event.message.sender.user_id)
+            clear_type = payload.replace('confirm_clear_', '')
+            
+            try:
+                if clear_type == 'all':
+                    deleted_count = await clear_all_tasks(str(chat_id))
+                    message = f"✅ Удалено {deleted_count} задач"
+                elif clear_type == 'done':
+                    deleted_count = await clear_completed_tasks(str(chat_id))
+                    message = f"✅ Удалено {deleted_count} выполненных задач"
+                elif clear_type == 'expired':
+                    deleted_count = await clear_expired_tasks(str(chat_id))
+                    message = f"✅ Удалено {deleted_count} просроченных задач"
+                else:
+                    message = "❌ Неизвестный тип очистки"
+                
+                await _respond(message, attachments=[back_to_menu_markup()])
+            except Exception as e:
+                logging.exception(f"Error clearing tasks: {e}")
+                await _respond("❌ Ошибка при удалении задач", attachments=[back_to_menu_markup()])
+            return
+
         if payload == 'back_to_menu':
             chat_id = derive_chat_id(callback_event) or None
             if chat_id is None:
@@ -1742,7 +2066,7 @@ def register_handlers(dp, bot):
                     chat_id = None
             
             if chat_id:
-                completed_count = await Task.filter(chat_id=str(chat_id), status="done").count()
+                completed_count = await get_total_completed_tasks(str(chat_id))
                 pretty_text = (
                     "🏠 Главное меню — Кузя\n"
                     f"✅ Выполнено задач: {completed_count}\n\n"
@@ -1775,7 +2099,6 @@ def register_handlers(dp, bot):
         """Удалить старые расписания (дольше 3 месяцев)"""
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (cleanup_schedules)")
                 return
         except Exception:
             pass
