@@ -128,28 +128,57 @@ async def deep_search(obj: Any, max_depth: int = 4, path: str = "root") -> Tuple
 
 
 async def respond(callback_event: Any, text: str, attachments=None, parse_mode=None):
-    """Try to edit the original message with keyboard; fall back to sending a new message."""
-    msg = getattr(callback_event, 'message', None)
-    if msg is not None:
-        edit = getattr(msg, 'edit', None)
-        if callable(edit):
-            try:
-                # Передаем parse_mode если он задан
-                if parse_mode:
-                    await edit(text=text, attachments=attachments, parse_mode=parse_mode)
-                else:
-                    await edit(text=text, attachments=attachments)
-                return
-            except Exception:
-                pass
+    """
+    Умная функция ответа: сначала пытается редактировать исходное сообщение,
+    если не получается - отправляет новое.
+    """
     try:
-        # Передаем parse_mode если он задан
-        if parse_mode:
-            await callback_event.message.answer(text, attachments=attachments, parse_mode=parse_mode)
-        else:
-            await callback_event.message.answer(text, attachments=attachments)
-    except Exception:
+        # Сначала пытаемся отредактировать исходное сообщение
+        msg = getattr(callback_event, 'message', None)
+        if msg and hasattr(msg, 'edit'):
+            try:
+                kwargs = {"text": text}
+                if attachments:
+                    kwargs["attachments"] = attachments
+                if parse_mode:
+                    kwargs["parse_mode"] = parse_mode
+                    
+                await msg.edit(**kwargs)
+                logging.debug("Successfully edited message via callback")
+                return
+            except Exception as edit_error:
+                logging.debug(f"Message edit failed: {edit_error}")
+                # Продолжаем к отправке нового сообщения
+                pass
+        
+        # Если редактирование не удалось, отправляем новое сообщение
+        if hasattr(callback_event, 'message') and hasattr(callback_event.message, 'answer'):
+            kwargs = {"text": text}
+            if attachments:
+                kwargs["attachments"] = attachments
+            if parse_mode:
+                kwargs["parse_mode"] = parse_mode
+                
+            await callback_event.message.answer(**kwargs)
+            logging.debug("Sent new message via callback")
+            return
+            
+        # Последняя попытка - через бот API
+        if hasattr(callback_event, 'bot') and msg:
+            message_id = getattr(msg, 'id', None)
+            if message_id:
+                await callback_event.bot.edit_message(
+                    message_id=message_id,
+                    text=text,
+                    parse_mode=parse_mode
+                )
+                logging.debug("Edited message via bot API")
+                return
+                
+    except Exception as e:
+        logging.error(f"All attempts to respond failed: {e}")
+        # В крайнем случае пытаемся отправить простое сообщение
         try:
-            await callback_event.bot.edit_message(getattr(callback_event.message, 'id', None), text=text)
+            await callback_event.message.answer(text)
         except Exception:
-            logging.exception("Не удалось отправить/отредактировать сообщение для callback")
+            logging.exception("Final fallback also failed")
