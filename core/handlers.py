@@ -77,7 +77,6 @@ def register_handlers(dp, bot):
     async def start_command(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (start_command)")
                 return
         except Exception:
             pass
@@ -112,13 +111,11 @@ def register_handlers(dp, bot):
     async def add_task_command(event: MessageCreated):
         try:
             if not is_event_allowed(event):
-                logging.info("/add from disallowed user/chat — ignoring")
                 return
         except Exception:
             pass
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (add_task_command)")
                 return
         except Exception:
             pass
@@ -143,7 +140,6 @@ def register_handlers(dp, bot):
     async def decompose_task(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (decompose_task)")
                 return
         except Exception:
             pass
@@ -192,17 +188,14 @@ def register_handlers(dp, bot):
 
     @dp.message_created(F.message.body.text & ~F.message.body.text.startswith('/'))
     async def add_task_plain_text(event: MessageCreated):
-        logging.info("add_task_plain_text handler triggered")
         try:
             if not is_event_allowed(event):
-                logging.info("Message from disallowed user/chat — ignoring")
                 return
         except Exception:
             logging.exception("Exception in is_event_allowed check")
             pass
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (plain_text)")
                 return
         except Exception:
             pass
@@ -232,13 +225,8 @@ def register_handlers(dp, bot):
         state = None
         if user_key and user_key in awaiting_actions:
             state = awaiting_actions.get(user_key)
-            logging.info("Consuming awaiting state by user_key=%s: %s", user_key, state)
         elif chat_key and chat_key in awaiting_actions:
             state = awaiting_actions.get(chat_key)
-            logging.info("Consuming awaiting state by chat_key=%s: %s", chat_key, state)
-        
-        if not state:
-            logging.info("No awaiting state found for user_key=%s chat_key=%s. awaiting_actions keys: %s", user_key, chat_key, list(awaiting_actions.keys()))
         
         if state:
             action = state.get('action')
@@ -321,56 +309,83 @@ def register_handlers(dp, bot):
                     await event.message.answer("Пожалуйста, опишите какую книгу вы хотите найти.", attachments=[back_to_menu_markup()])
                     return
                 
+                from core.message_utils import smart_send_or_edit
+                
                 # Очищаем состояние
                 if user_key:
                     awaiting_actions.pop(user_key, None)
                 if chat_key:
                     awaiting_actions.pop(chat_key, None)
                 
+                chat_id = _resolve_chat_id(event)
+                
                 # Показываем что идет поиск
-                await event.message.answer("🔍 Ищу подходящие книги...")
+                await smart_send_or_edit(
+                    bot=bot,
+                    event=event,
+                    text="🔍 Ищу подходящие книги...",
+                    chat_id=chat_id,
+                    message_type="book_search"
+                )
                 
                 try:
                     # Выполняем поиск книг
                     books = await book_search_service.search_books(user_request, max_results=3)
                     
                     if books:
-                        # Отправляем заголовок с HTML форматированием
-                        await event.message.answer(
+                        # Формируем единое сообщение со всеми результатами
+                        result_lines = [
                             f"<b>📚 Нашел {len(books)} книг по запросу:</b> <i>\"{user_request}\"</i>",
-                            parse_mode=ParseMode.HTML
-                        )
+                            ""
+                        ]
                         
-                        # Отправляем каждую книгу отдельным сообщением
+                        # Добавляем все книги в одно сообщение
                         for i, book in enumerate(books, 1):
                             book_text = book_search_service.format_book_result(book)
-                            # Добавляем номер книги в начало с HTML форматированием
-                            formatted_text = f"<b>{i}.</b>\n{book_text}"
-                            
-                            await event.message.answer(formatted_text, parse_mode=ParseMode.HTML)
+                            result_lines.append(f"<b>{i}.</b>")
+                            result_lines.append(book_text)
+                            if i < len(books):  # Добавляем разделитель между книгами
+                                result_lines.append("")
                         
-                        # Отправляем завершающее сообщение
-                        await event.message.answer(
-                            "✨ Хотите найти еще книги? Нажмите 📚 <b>Подбор книг</b> в главном меню.",
+                        result_lines.append("")
+                        result_lines.append("✨ Хотите найти еще книги? Нажмите 📚 <b>Подбор книг</b> в главном меню.")
+                        
+                        # Редактируем сообщение о поиске на результат
+                        await smart_send_or_edit(
+                            bot=bot,
+                            event=event,
+                            text="\n".join(result_lines),
+                            chat_id=chat_id,
+                            message_type="book_search",
                             attachments=[back_to_menu_markup()],
                             parse_mode=ParseMode.HTML
                         )
                             
                     else:
-                        await event.message.answer(
-                            f"😔 К сожалению, не удалось найти книги по запросу <i>\"{user_request}\"</i>.\n\n"
-                            "<b>Попробуйте:</b>\n"
-                            "• Изменить формулировку\n" 
-                            "• Указать жанр или автора\n"
-                            "• Использовать более общие термины",
+                        # Редактируем сообщение на "не найдено"
+                        await smart_send_or_edit(
+                            bot=bot,
+                            event=event,
+                            text=f"😔 К сожалению, не удалось найти книги по запросу <i>\"{user_request}\"</i>.\n\n"
+                                 "<b>Попробуйте:</b>\n"
+                                 "• Изменить формулировку\n" 
+                                 "• Указать жанр или автора\n"
+                                 "• Использовать более общие термины",
+                            chat_id=chat_id,
+                            message_type="book_search",
                             attachments=[back_to_menu_markup()],
                             parse_mode=ParseMode.HTML
                         )
                         
                 except Exception as e:
                     logging.exception(f"Error in book search: {e}")
-                    await event.message.answer(
-                        "❌ Произошла ошибка при поиске книг. Попробуйте позже.",
+                    # Редактируем сообщение на ошибку
+                    await smart_send_or_edit(
+                        bot=bot,
+                        event=event,
+                        text="❌ Произошла ошибка при поиске книг. Попробуйте позже.",
+                        chat_id=chat_id,
+                        message_type="book_search",
                         attachments=[back_to_menu_markup()]
                     )
                 
@@ -769,7 +784,6 @@ def register_handlers(dp, bot):
     async def list_tasks(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (list_tasks)")
                 return
         except Exception:
             pass
@@ -820,7 +834,6 @@ def register_handlers(dp, bot):
     async def mark_task_done(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (mark_task_done)")
                 return
         except Exception:
             pass
@@ -859,7 +872,6 @@ def register_handlers(dp, bot):
     async def add_schedule(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (add_schedule)")
                 return
         except Exception:
             pass
@@ -883,7 +895,6 @@ def register_handlers(dp, bot):
     async def set_schedule_reminder(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (set_schedule_reminder)")
                 return
         except Exception:
             pass
@@ -925,7 +936,6 @@ def register_handlers(dp, bot):
     async def list_schedule(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (list_schedule)")
                 return
         except Exception:
             pass
@@ -951,7 +961,6 @@ def register_handlers(dp, bot):
     async def remove_schedule(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (remove_schedule)")
                 return
         except Exception:
             pass
@@ -978,7 +987,6 @@ def register_handlers(dp, bot):
     async def set_timezone(event: MessageCreated):
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (set_timezone)")
                 return
         except Exception:
             pass
@@ -1050,7 +1058,6 @@ def register_handlers(dp, bot):
     async def on_button_pressed(callback_event):
         try:
             if not is_callback_allowed(callback_event):
-                logging.info("Callback from disallowed user/chat — ignoring")
                 return
         except Exception:
             pass
@@ -2092,7 +2099,6 @@ def register_handlers(dp, bot):
         """Удалить старые расписания (дольше 3 месяцев)"""
         try:
             if should_ignore_message_event_on_start(event):
-                logging.info("Ignoring historical message event on startup (cleanup_schedules)")
                 return
         except Exception:
             pass

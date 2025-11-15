@@ -39,8 +39,63 @@
 ## 🚀 Установка и запуск
 
 ### Требования
-- Python 3.10+
-- AI токен 
+- Python 3.10+ или Docker
+- Max Bot токен (получить у @masterbot)
+- AI токен от Google Gemini (получить на https://aistudio.google.com)
+
+> 🔑 **Получение AI токена:**
+> 1. Перейдите на https://aistudio.google.com
+> 2. Войдите в аккаунт Google
+> 3. Нажмите "Get API key"
+> 4. Создайте новый API ключ
+> 5. Скопируйте ключ для использования в `.env` файле
+
+## 🐳 Docker (Рекомендуется)
+
+### Быстрый запуск
+1. **Клонирование репозитория**
+```bash
+git clone https://github.com/FrankyShelloy/kuzia-bot
+cd kuzia-bot
+```
+
+2. **Настройка окружения**
+```bash
+cp .env.example .env
+# Отредактируйте .env файл с вашими токенами
+```
+
+3. **Запуск через Docker**
+```bash
+./docker-run.sh
+```
+
+### Docker команды
+```bash
+# Быстрая сборка и запуск (рекомендуется)
+make run
+
+# Просмотр логов
+make logs
+
+# Остановка
+make stop
+
+# Или стандартные команды Docker Compose:
+# Сборка и запуск с кэшированием
+DOCKER_BUILDKIT=1 docker compose up --build -d
+
+# Просмотр логов
+docker compose logs -f
+
+# Остановка
+docker compose down
+
+# Пересборка после изменений
+docker compose build --no-cache
+```
+
+## 🐍 Установка через Python
 
 ### Шаги установки
 
@@ -66,10 +121,16 @@ pip install -r requirements.txt
 
 Создайте файл `.env` в корне проекта:
 ```env
-TOKEN=your_bot_token_here
-AI_TOKEN=your_token_here
-DB_URL=sqlite://db.sqlite3
+TOKEN=your_max_bot_token_here
+AI_TOKEN=your_gemini_api_key_here
+DB_URL=sqlite:///db.sqlite3
+LOG_LEVEL=WARNING
+DEBUG_MODE=false
 ```
+
+> 📋 **Как получить токены:**
+> - **TOKEN**: Создайте бота у @masterbot в Max messenger
+> - **AI_TOKEN**: Получите API ключ на https://aistudio.google.com
 
 5. **Запуск бота**
 ```bash
@@ -138,10 +199,59 @@ kuzia-bot/
 │   ├── models.py          # Модели БД
 │   ├── motivation.py      # Система мотивации
 │   ├── state.py           # Управление состоянием
-│   └── utils.py           # Утилиты
+│   ├── utils.py           # Утилиты
+│   └── message_utils.py   # Утилиты для сообщений
+├── scripts/
+│   └── clear_db.py        # Скрипт очистки БД
 ├── main.py                # Точка входа
 ├── requirements.txt       # Зависимости
+├── Dockerfile             # Образ Docker (оптимизирован)
+├── docker-compose.yml     # Оркестрация Docker
+├── docker-run.sh          # Скрипт запуска
+├── Makefile              # Команды для сборки
+├── .env.example           # Пример конфигурации
 └── .env                   # Конфигурация (не в git)
+```
+
+## 🔧 Развертывание в продакшене
+
+### Docker Compose (Рекомендуется)
+```bash
+# Подготовка
+cp .env.example .env
+# Настройте токены в .env:
+# - TOKEN: получите у @masterbot в Max messenger
+# - AI_TOKEN: получите на https://aistudio.google.com
+
+# Запуск в фоне
+docker compose up -d
+
+# Мониторинг
+docker compose logs -f kuzia.bot
+```
+
+### Systemd сервис (Linux)
+```bash
+# Создать сервис
+sudo nano /etc/systemd/system/kuzia-bot.service
+
+[Unit]
+Description=Kuzia Bot
+After=network.target
+
+[Service]
+Type=simple
+User=kuzia
+WorkingDirectory=/opt/kuzia-bot
+ExecStart=/opt/kuzia-bot/.venv/bin/python main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+# Запуск сервиса
+sudo systemctl enable kuzia-bot
+sudo systemctl start kuzia-bot
 ```
 
 

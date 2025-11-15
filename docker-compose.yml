@@ -1,0 +1,33 @@
+services:
+  kuzia.bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Кэширование слоев
+      cache_from:
+        - kuzia.bot:latest
+        - python:3.11-slim
+    image: kuzia.bot:latest
+    container_name: kuzia.bot
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data  # Для сохранения базы данных
+    environment:
+      - TOKEN=${TOKEN}              # Токен бота для Max messenger
+      - AI_TOKEN=${AI_TOKEN}        # Токен для AI (Gemini)
+      - DB_URL=sqlite:///app/data/db.sqlite3
+    env_file:
+      - .env
+    # Health check для мониторинга
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python main.py' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Логирование
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
